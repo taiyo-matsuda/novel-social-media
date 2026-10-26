@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FakeNovelGenerator } from "./fake";
+import { FakeNovelGenerator } from "@novel/core/ai";
 import { createNovelGenerator } from "./index";
 
 describe("createNovelGenerator", () => {

@@ -1,0 +1,26 @@
+{
+  "name": "@novel/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "アプリとサーバーで共有するロジック（型・プロンプト・ランキングなど）",
+  "type": "module",
+  "exports": {
+    "./ai": "./src/ai/index.ts",
+    "./api": "./src/api/index.ts",
+    "./ranking": "./src/ranking/score.ts"
+  },
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}

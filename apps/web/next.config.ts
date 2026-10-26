@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  // packages/core は TypeScript のまま共有しているので、Next.js 側でトランスパイルする
+  transpilePackages: ["@novel/core"],
   turbopack: {
     rules: {
       "*.css": {

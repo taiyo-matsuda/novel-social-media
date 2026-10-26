@@ -1,13 +1,21 @@
 # AI小説SNS（仮）
 
-好みを伝えると、AIがあなた専用の小説を書き、公開して他の人と読み合えるSNSです。
+好みを伝えると、AIがあなた専用の小説を書き、公開して他の人と読み合えるスマホアプリです。
+
+## 構成
+
+- `apps/mobile`：スマホアプリ（Expo）
+- `apps/web`：サーバー（Next.js。AI生成のAPI）
+- `packages/core`：共有ロジック
 
 ## はじめかた
 
 ```bash
 pnpm install
-cp .env.example .env.local   # 値を入れる（ANTHROPIC_API_KEY が空ならAIはフェイクで動く）
-pnpm dev
+cp apps/web/.env.example apps/web/.env.local       # ANTHROPIC_API_KEY が空ならAIはフェイクで動く
+cp apps/mobile/.env.example apps/mobile/.env.local
+pnpm dev:web      # サーバー
+pnpm dev:mobile   # アプリ（スマホの Expo Go でQRコードを読む）
 ```
 
 DBは [Supabase](https://supabase.com/) を使います。`supabase/migrations/` のSQLをプロジェクトに適用してください。

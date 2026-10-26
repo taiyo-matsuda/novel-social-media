@@ -1,47 +1,23 @@
 {
   "name": "novel-social-media",
-  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "dev:web": "pnpm --filter @novel/web dev",
+    "dev:mobile": "pnpm --filter @novel/mobile start",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^1.3.0",
-    "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.118.0",
-    "next": "16.4.3",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "zod": "^4.6.7"
-  },
   "devDependencies": {
-    "@tailwindcss/turbopack": "^4",
-    "@testing-library/dom": "^10.4.2",
-    "@testing-library/react": "^16.3.3",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^6.1.2",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.3",
-    "jsdom": "^30.1.3",
     "prettier": "^3.9.10",
-    "prettier-plugin-tailwindcss": "^0.8.1",
-    "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^5.0.5"
+    "prettier-plugin-tailwindcss": "^0.8.1"
   },
-  "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=22"
-  }
+  },
+  "packageManager": "pnpm@10.28.0"
 }

@@ -25,3 +25,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm test
       - run: pnpm build
+      - name: スマホアプリがバンドルできるか確認
+        run: pnpm --filter @novel/mobile exec expo export --platform web --output-dir dist
+        env:
+          CI: 1

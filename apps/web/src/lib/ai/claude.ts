@@ -2,8 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { serverEnv } from "@/lib/env";
 
-import { buildChapterPrompt, parseChapter, SYSTEM_PROMPT } from "./prompts";
-import type { ChapterRequest, GeneratedChapter, NovelGenerator } from "./types";
+import {
+  buildChapterPrompt,
+  type ChapterRequest,
+  type GeneratedChapter,
+  type NovelGenerator,
+  parseChapter,
+  SYSTEM_PROMPT,
+} from "@novel/core/ai";
 
 export class AiRefusalError extends Error {}
 

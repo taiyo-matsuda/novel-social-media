@@ -1,8 +1,6 @@
-import { ClaudeNovelGenerator } from "./claude";
-import { FakeNovelGenerator } from "./fake";
-import type { NovelGenerator } from "./types";
+import { FakeNovelGenerator, type NovelGenerator } from "@novel/core/ai";
 
-export type * from "./types";
+import { ClaudeNovelGenerator } from "./claude";
 
 /** APIキーがなければフェイクを返す。キー未設定のローカル開発でも画面を動かせる。 */
 export function createNovelGenerator(): NovelGenerator {
