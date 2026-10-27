@@ -4,4 +4,6 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 開発中は Mac のローカルサーバー（http）につなぐため、デバッグビルドだけ http を許可する -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

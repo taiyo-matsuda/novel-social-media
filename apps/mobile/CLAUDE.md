@@ -28,3 +28,12 @@ test/                 lib/ と同じ並びでテストを置く（*_test.dart）
 | シミュレーターで起動         | `open -a Simulator` のあと `flutter run`                  |
 | まとめて確認                 | `dart format lib test && flutter analyze && flutter test` |
 | iOS 向けにビルドだけ確かめる | `flutter build ios --simulator --debug`                   |
+
+## 実機（iPhone）で試す
+
+1. iPhone と Mac を同じネットワーク（Wi‑Fi かテザリング）につなぎ、Mac の IP を調べる：`ipconfig getifaddr en0`
+2. サーバーをネットワーク向けに起動する（apps/api で）：`pnpm exec wrangler dev --ip 0.0.0.0`
+3. iPhone に入れる：`flutter run --release -d <端末ID> --dart-define=API_URL=http://<MacのIP>:8787`（端末IDは `flutter devices`）。デバッグ版はワイヤレスだと起動できないことがあるので release で入れる
+4. 初回だけ iPhone の「設定 > 一般 > VPNとデバイス管理」で開発者（Apple Development）を「信頼」する。無料の Apple ID で署名したアプリは7日で開けなくなるので、そのときは 3 をやり直す
+
+開発中は Mac の http サーバーにつなぐため、iOS は `NSAllowsLocalNetworking`、Android はデバッグ版だけ http を許可している。本番の API は https なので影響しない。
