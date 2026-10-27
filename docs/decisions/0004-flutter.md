@@ -20,6 +20,7 @@
 
 - 型やルールがアプリ（Dart）とサーバー（TypeScript）で二重になる。`MIN_CHOICES`（3）と `MIN_PASSWORD_LENGTH`（8）、API の入出力の形は両方そろえる
 - Flutter の SDK は `brew install --cask flutter` で入れた。iOS のビルドには CocoaPods も使う
+- **Web 版は後で作る。** 長い小説を書いたり展開を細かく指示したりするのはスマホだと打ちにくいため（taiyo の判断）。Flutter は同じコードを Web にも出せる（`flutter create --platforms=web .`）。ただし「書く画面」は PC 向けの広いレイアウトを別に用意する。公開作品を検索エンジンに載せたくなったら、読む側だけは HTML を返す別の Web ページ（Workers 側など）にするか検討する
 - macOS のデスクトップ版は作っていない（必要になったら `flutter create --platforms=macos .` で足せる）
 
 ## 代わりに検討したもの
