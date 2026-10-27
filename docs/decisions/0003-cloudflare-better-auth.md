@@ -8,7 +8,7 @@
 - サーバーは Next.js から **Cloudflare Workers + Hono** に変える（`apps/web` → `apps/api`）
 - DB は Supabase（PostgreSQL）から **Cloudflare D1（SQLite）** に変える。マイグレーションは `apps/api/migrations/`
 - ログインは **Better Auth** の **メールアドレス＋パスワード**。**確認メールは送らない**（登録するとすぐ使える）
-- スマホアプリは `@better-auth/expo` でログイン状態のクッキーを `expo-secure-store`（Keychain / Keystore）に保存し、API を呼ぶときに付ける
+- スマホアプリは `@better-auth/expo` でログイン状態のクッキーを `expo-secure-store`（Keychain / Keystore）に保存し、API を呼ぶときに付ける（[0004](0004-flutter.md) で Flutter と bearer トークンに変更）
 - アプリは DB に直接触らない。読み書きはすべて API 経由で、API が利用者IDで絞る
 
 ## 理由

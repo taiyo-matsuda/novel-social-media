@@ -1,13 +1,14 @@
-import { expo } from "@better-auth/expo";
 import { MIN_PASSWORD_LENGTH } from "@novel/core/auth";
 import { betterAuth } from "better-auth";
+import { bearer } from "better-auth/plugins";
 
 import { webOrigins, type Env } from "../env";
 import { hashPassword, verifyPassword } from "./password";
 
 /**
  * ログイン（Better Auth）。メールアドレスとパスワードで登録・ログインし、確認メールは送らない。
- * スマホアプリはクッキーを端末に保存して送ってくる（@better-auth/expo）。
+ * スマホアプリ（Flutter）はログイン時の `set-auth-token` ヘッダーのトークンを端末に保存し、
+ * `Authorization: Bearer <トークン>` で送ってくる（bearer プラグイン）。
  */
 export function createAuth(env: Env) {
   return betterAuth({
@@ -21,9 +22,9 @@ export function createAuth(env: Env) {
       minPasswordLength: MIN_PASSWORD_LENGTH,
       password: { hash: hashPassword, verify: verifyPassword },
     },
-    // アプリ（novelsns://）と、ブラウザで試すときの開発サーバー
-    trustedOrigins: ["novelsns://", ...webOrigins(env)],
-    plugins: [expo()],
+    // スマホアプリは Origin を付けないので、ブラウザで試すときの開発サーバーだけ
+    trustedOrigins: webOrigins(env),
+    plugins: [bearer()],
     telemetry: { enabled: false },
   });
 }

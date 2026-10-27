@@ -3,12 +3,12 @@
 読者が好みを伝えると、AIが自分専用の小説を書き、それを公開してユーザー同士で読み合うSNS。**主役はスマホアプリ**。
 プロダクトの前提とMVP範囲は [docs/product.md](docs/product.md)、設計は [docs/architecture.md](docs/architecture.md) を読む。
 
-## 構成（pnpm ワークスペースのモノレポ）
+## 構成（モノレポ。サーバーは pnpm ワークスペース、アプリは Flutter）
 
 ```
-apps/mobile/    スマホアプリ（Expo + Expo Router）。画面はここに作る
+apps/mobile/    スマホアプリ（Flutter / Dart）。画面はここに作る。pnpm のワークスペースには入らない
 apps/api/       サーバー（Cloudflare Workers + Hono）。ログイン・DB・AI生成のAPI
-packages/core/  アプリとサーバーで共有するロジック（型・プロンプト・ランキング・APIの入出力）
+packages/core/  サーバーの共有ロジック（TypeScript。型・プロンプト・ランキング・APIの入出力）
 apps/api/migrations/  DBスキーマ（Cloudflare D1）。追記のみ
 docs/           プロダクト・設計・決定記録
 ```
@@ -17,21 +17,22 @@ docs/           プロダクト・設計・決定記録
 
 ## コマンド（リポジトリのルートで実行）
 
-| 目的                                   | コマンド                              |
-| -------------------------------------- | ------------------------------------- |
-| まとめて確認（lint・型・整形・テスト） | `pnpm check`                          |
-| スマホアプリの開発サーバー             | `pnpm dev:mobile`                     |
-| サーバーの開発サーバー                 | `pnpm dev:api`                        |
-| 1パッケージだけ                        | `pnpm --filter @novel/core test` など |
-| 整形                                   | `pnpm format`                         |
-| ビルド                                 | `pnpm build`                          |
+| 目的                                    | コマンド                              |
+| --------------------------------------- | ------------------------------------- |
+| まとめて確認（lint・型・整形・テスト）  | `pnpm check`                          |
+| アプリだけ確認（整形・analyze・テスト） | `pnpm check:mobile`                   |
+| スマホアプリを起動（flutter run）       | `pnpm dev:mobile`                     |
+| サーバーの開発サーバー                  | `pnpm dev:api`                        |
+| 1パッケージだけ                         | `pnpm --filter @novel/core test` など |
+| 整形                                    | `pnpm format`                         |
+| ビルド                                  | `pnpm build`                          |
 
-作業を終える前に `pnpm check` を通す。CI（`.github/workflows/ci.yml`）も同じ内容に `pnpm build` を加えて実行する。
+開発は Mac で行う（Flutter・Xcode・iOS シミュレーターを使う）。作業を終える前に `pnpm check` を通す。CI（`.github/workflows/ci.yml`）も同じ内容に `pnpm build` を加えて実行する。
 
 ## 作業ルール
 
-- **ロジックは `packages/core` か各アプリの `features/` に純粋関数として切り出し、`*.test.ts` を隣に置く。** テストを先に書くか、同時に書く。
-- **アプリとサーバーでやり取りするデータの型とスキーマは `packages/core/src/api` に置く。** サーバーは受け取ったら必ず zod で検証する。
+- **ロジックは純粋関数として切り出し、テストを書く。** サーバーは `packages/core` か `apps/api/src/features/` に置いて `*.test.ts` を隣に、アプリは `apps/mobile/lib/features/` に置いて `apps/mobile/test/` の同じ場所に `*_test.dart` を置く。テストを先に書くか、同時に書く。
+- **アプリとサーバーでやり取りするデータの型とスキーマは `packages/core/src/api` が正。** サーバーは受け取ったら必ず zod で検証する。アプリ（Dart）は TypeScript を読めないので、`apps/mobile/lib/services/api_client.dart` に同じ形を書き写す。API を変えたら両方を直す。
 - **AIのAPIキーはアプリに入れない。** AI呼び出しは必ずサーバー（apps/api）経由。
 - **テストで Claude API を呼ばない。** `FakeNovelGenerator`（`@novel/core/ai`）を使う。AIやDBを使う処理は依存を引数で受け取る形にする（例：`apps/api/src/features/generation`）。
 - **プロンプトは `packages/core/src/ai/prompts.ts` に集める。** 変えたらテストの期待値も見直す。
