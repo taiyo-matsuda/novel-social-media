@@ -24,7 +24,7 @@ import {
   fetchOpenings,
   fetchOwnChoices,
   saveChoice,
-} from "@/features/openings/openings-repo";
+} from "@/lib/api";
 
 /**
  * 最初の画面：短い冒頭文を1つずつ見せて「読みたい／読みたくない」を選んでもらう。
@@ -32,7 +32,7 @@ import {
  */
 export default function OpeningsScreen() {
   const { colors } = useTheme();
-  const { db, userId, refreshOnboarded } = useSignedIn();
+  const { refreshOnboarded } = useSignedIn();
   const [openings, setOpenings] = useState<Opening[] | null>(null);
   const [choices, setChoices] = useState<Map<number, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export default function OpeningsScreen() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchOpenings(db), fetchOwnChoices(db, userId)])
+    Promise.all([fetchOpenings(), fetchOwnChoices()])
       .then(([list, own]) => {
         if (!active) return;
         setOpenings(list);
@@ -55,14 +55,14 @@ export default function OpeningsScreen() {
     return () => {
       active = false;
     };
-  }, [db, userId, loadCount]);
+  }, [loadCount]);
 
   async function choose(opening: Opening, wantsToRead: boolean) {
     const before = choices;
     // 待たせないよう先に画面を進め、保存に失敗したら戻す
     setChoices(new Map(before).set(opening.id, wantsToRead));
     try {
-      await saveChoice(db, userId, opening.id, wantsToRead);
+      await saveChoice(opening.id, wantsToRead);
     } catch {
       setChoices(before);
       setError("保存できませんでした。もう一度選んでください。");
@@ -71,7 +71,7 @@ export default function OpeningsScreen() {
 
   async function startOver() {
     try {
-      await clearChoices(db, userId);
+      await clearChoices();
       setChoices(new Map());
       setError(null);
     } catch {

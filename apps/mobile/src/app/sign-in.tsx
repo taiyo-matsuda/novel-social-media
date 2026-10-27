@@ -1,9 +1,9 @@
 import {
+  authErrorMessage,
   isValidEmail,
-  isValidOtp,
+  isValidPassword,
+  MIN_PASSWORD_LENGTH,
   normalizeEmail,
-  normalizeOtp,
-  OTP_LENGTH,
 } from "@novel/core/auth";
 import { useTheme } from "expo-router";
 import { useState } from "react";
@@ -15,78 +15,48 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
-import { useAuth } from "@/features/auth/auth-provider";
+import { authClient } from "@/lib/auth-client";
+
+type Mode = "signUp" | "signIn";
+
+/** 表示名の初期値。あとでプロフィール画面から変えられるようにする */
+const DEFAULT_NAME = "読者";
 
 /**
- * メールアドレスに届く6桁のコードでログインする。初めての人はそのまま登録になる。
- * パスワードを覚えなくてよく、アプリに戻るためのリンク設定も要らない。
+ * メールアドレスとパスワードで登録・ログインする。確認メールは送らない。
+ * 成功するとログイン状態が変わり、ルートが次の画面へ切り替える。
  */
 export default function SignInScreen() {
   const { colors } = useTheme();
-  const { db } = useAuth();
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [mode, setMode] = useState<Mode>("signUp");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!db) {
-    return (
-      <SafeAreaView
-        style={[styles.flex, { backgroundColor: colors.background }]}
-      >
-        <ScrollView contentContainerStyle={styles.container}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            接続先が設定されていません
-          </Text>
-          <Text style={[styles.body, { color: colors.text }]}>
-            apps/mobile/.env.local に EXPO_PUBLIC_SUPABASE_URL と
-            EXPO_PUBLIC_SUPABASE_ANON_KEY
-            を設定してから、アプリを起動し直してください。
-          </Text>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
+  const canSubmit = isValidEmail(email) && isValidPassword(password);
 
-  async function sendCode() {
-    if (!db) return;
+  async function submit() {
+    if (!canSubmit) return;
     setBusy(true);
     setError(null);
-    const { error } = await db.auth.signInWithOtp({
-      email: normalizeEmail(email),
-    });
+    const credentials = { email: normalizeEmail(email), password };
+    const { error } =
+      mode === "signUp"
+        ? await authClient.signUp.email({ ...credentials, name: DEFAULT_NAME })
+        : await authClient.signIn.email(credentials);
     setBusy(false);
-    if (error) {
-      setError(
-        error.status === 429
-          ? "送信が続いたため、少し時間をおいてからお試しください。"
-          : "コードを送れませんでした。メールアドレスを確かめてください。",
-      );
-      return;
-    }
-    setCode("");
-    setStep("code");
+    if (error) setError(authErrorMessage(error));
   }
 
-  async function verifyCode() {
-    if (!db) return;
-    setBusy(true);
+  function switchMode(next: Mode) {
+    setMode(next);
     setError(null);
-    const { error } = await db.auth.verifyOtp({
-      email: normalizeEmail(email),
-      token: normalizeOtp(code),
-      type: "email",
-    });
-    setBusy(false);
-    // 成功するとログイン状態が変わり、ルートが次の画面へ切り替える
-    if (error) {
-      setError("コードが違うか、有効期限が切れています。");
-    }
   }
 
   const inputStyle = [
@@ -111,77 +81,82 @@ export default function SignInScreen() {
             好みを伝えると、AIがあなただけの小説を書きます。気に入った作品は公開して、ほかの人の作品も読めます。
           </Text>
 
-          {step === "email" ? (
-            <>
-              <Text style={[styles.label, { color: colors.text }]}>
-                メールアドレス
-              </Text>
-              <TextInput
-                style={inputStyle}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                placeholderTextColor="#999"
-                autoCapitalize="none"
-                autoComplete="email"
-                autoCorrect={false}
-                keyboardType="email-address"
-                textContentType="emailAddress"
-                returnKeyType="send"
-                onSubmitEditing={() => isValidEmail(email) && sendCode()}
-              />
-              <Text style={[styles.hint, { color: colors.text }]}>
-                ログイン用のコードをメールで送ります。初めての方もこのまま始められます。
-              </Text>
-              <Button
-                label="コードを送る"
-                onPress={sendCode}
-                disabled={!isValidEmail(email)}
-                loading={busy}
-              />
-            </>
-          ) : (
-            <>
-              <Text style={[styles.body, { color: colors.text }]}>
-                {normalizeEmail(email)} に{OTP_LENGTH}
-                桁のコードを送りました。メールに書かれたコードを入力してください。
-              </Text>
-              <TextInput
-                style={[inputStyle, styles.codeInput]}
-                value={code}
-                onChangeText={setCode}
-                placeholder={"0".repeat(OTP_LENGTH)}
-                placeholderTextColor="#999"
-                keyboardType="number-pad"
-                autoComplete="one-time-code"
-                textContentType="oneTimeCode"
-                maxLength={OTP_LENGTH + 2}
-                autoFocus
-              />
-              <Button
-                label="ログイン"
-                onPress={verifyCode}
-                disabled={!isValidOtp(code)}
-                loading={busy}
-              />
-              <Pressable onPress={sendCode} disabled={busy}>
-                <Text style={[styles.link, { color: colors.primary }]}>
-                  コードを送り直す
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setStep("email");
-                  setError(null);
-                }}
-                disabled={busy}
-              >
-                <Text style={[styles.link, { color: colors.primary }]}>
-                  メールアドレスを変える
-                </Text>
-              </Pressable>
-            </>
+          <View style={[styles.tabs, { borderColor: colors.border }]}>
+            {(
+              [
+                ["signUp", "はじめての方"],
+                ["signIn", "ログイン"],
+              ] as const
+            ).map(([value, label]) => {
+              const selected = mode === value;
+              return (
+                <Pressable
+                  key={value}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  onPress={() => switchMode(value)}
+                  style={[
+                    styles.tab,
+                    selected && { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      { color: selected ? "#fff" : colors.text },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={[styles.label, { color: colors.text }]}>
+            メールアドレス
+          </Text>
+          <TextInput
+            style={inputStyle}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            placeholderTextColor="#999"
+            autoCapitalize="none"
+            autoComplete="email"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType={mode === "signUp" ? "username" : "emailAddress"}
+          />
+
+          <Text style={[styles.label, { color: colors.text }]}>パスワード</Text>
+          <TextInput
+            style={inputStyle}
+            value={password}
+            onChangeText={setPassword}
+            placeholder={`${MIN_PASSWORD_LENGTH}文字以上`}
+            placeholderTextColor="#999"
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete={
+              mode === "signUp" ? "new-password" : "current-password"
+            }
+            textContentType={mode === "signUp" ? "newPassword" : "password"}
+            returnKeyType="go"
+            onSubmitEditing={submit}
+          />
+          {mode === "signUp" && (
+            <Text style={[styles.hint, { color: colors.text }]}>
+              確認メールは届きません。登録するとすぐに始められます。
+            </Text>
           )}
+
+          <Button
+            label={mode === "signUp" ? "登録して始める" : "ログイン"}
+            onPress={submit}
+            disabled={!canSubmit}
+            loading={busy}
+          />
 
           {error && <Text style={styles.error}>{error}</Text>}
         </ScrollView>
@@ -195,7 +170,22 @@ const styles = StyleSheet.create({
   container: { padding: 24, gap: 16, flexGrow: 1, justifyContent: "center" },
   title: { fontSize: 26, fontWeight: "bold" },
   body: { fontSize: 16, lineHeight: 26 },
-  label: { fontSize: 15, fontWeight: "600", marginTop: 16 },
+  tabs: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 4,
+    marginTop: 8,
+  },
+  tab: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabLabel: { fontSize: 15, fontWeight: "600" },
+  label: { fontSize: 15, fontWeight: "600", marginTop: 8 },
   hint: { fontSize: 13, lineHeight: 20, opacity: 0.6 },
   input: {
     borderWidth: 1,
@@ -204,7 +194,5 @@ const styles = StyleSheet.create({
     minHeight: 52,
     fontSize: 17,
   },
-  codeInput: { fontSize: 28, letterSpacing: 8, textAlign: "center" },
-  link: { fontSize: 15, textAlign: "center", paddingVertical: 8 },
   error: { color: "#d33", fontSize: 15, lineHeight: 22 },
 });

@@ -2,7 +2,7 @@
   "name": "novel-social-media",
   "private": true,
   "scripts": {
-    "dev:web": "pnpm --filter @novel/web dev",
+    "dev:api": "pnpm --filter @novel/api dev",
     "dev:mobile": "pnpm --filter @novel/mobile start",
     "build": "pnpm -r --if-present build",
     "lint": "pnpm -r --if-present lint",

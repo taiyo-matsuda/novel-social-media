@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-/** メールに届くワンタイムコードの桁数（Supabase の既定は6桁） */
-export const OTP_LENGTH = 6;
+/** パスワードの最短の長さ（サーバーの Better Auth の設定にも使う） */
+export const MIN_PASSWORD_LENGTH = 8;
+/** パスワードの最長の長さ（Better Auth の既定と同じ） */
+export const MAX_PASSWORD_LENGTH = 128;
 
 const emailSchema = z.email();
 
@@ -14,13 +16,26 @@ export function isValidEmail(input: string): boolean {
   return emailSchema.safeParse(normalizeEmail(input)).success;
 }
 
-/** 入力されたコードから数字以外（空白・ハイフン・全角数字の変換漏れなど）を取り除く。 */
-export function normalizeOtp(input: string): string {
-  return input
-    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-    .replace(/\D/g, "");
+export function isValidPassword(input: string): boolean {
+  return (
+    input.length >= MIN_PASSWORD_LENGTH && input.length <= MAX_PASSWORD_LENGTH
+  );
 }
 
-export function isValidOtp(input: string): boolean {
-  return normalizeOtp(input).length === OTP_LENGTH;
+/** Better Auth のエラーを、画面に出す日本語にする。 */
+export function authErrorMessage(error: {
+  code?: string;
+  status?: number;
+}): string {
+  if (error.status === 429)
+    return "試行が続いたため、少し時間をおいてからお試しください。";
+  if (error.code?.startsWith("USER_ALREADY_EXISTS"))
+    return "このメールアドレスはすでに登録されています。「ログイン」から入ってください。";
+  if (error.code === "INVALID_EMAIL_OR_PASSWORD")
+    return "メールアドレスかパスワードが違います。";
+  if (error.code === "INVALID_EMAIL")
+    return "メールアドレスの形式が正しくありません。";
+  if (error.code === "PASSWORD_TOO_SHORT")
+    return `パスワードは${MIN_PASSWORD_LENGTH}文字以上にしてください。`;
+  return "うまくいきませんでした。通信状態を確かめて、もう一度お試しください。";
 }

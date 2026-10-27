@@ -5,20 +5,21 @@
 ## 構成
 
 - `apps/mobile`：スマホアプリ（Expo）
-- `apps/web`：サーバー（Next.js。AI生成のAPI）
+- `apps/api`：サーバー（Cloudflare Workers。ログイン・DB・AI生成のAPI）
 - `packages/core`：共有ロジック
 
 ## はじめかた
 
 ```bash
 pnpm install
-cp apps/web/.env.example apps/web/.env.local       # ANTHROPIC_API_KEY が空ならAIはフェイクで動く
+cp apps/api/.dev.vars.example apps/api/.dev.vars   # BETTER_AUTH_SECRET を埋める。ANTHROPIC_API_KEY が空ならAIはフェイクで動く
 cp apps/mobile/.env.example apps/mobile/.env.local
-pnpm dev:web      # サーバー
+pnpm --filter @novel/api db:migrate:local   # ローカルのDBを作る（初回とマイグレーション追加時）
+pnpm dev:api      # サーバー（http://localhost:8787）
 pnpm dev:mobile   # アプリ（スマホの Expo Go でQRコードを読む）
 ```
 
-DBは [Supabase](https://supabase.com/) を使います。`supabase/migrations/` のSQLをプロジェクトに適用し、ログイン用のメールテンプレートにコード（`{{ .Token }}`）を入れてください（[docs/decisions/0002-login.md](docs/decisions/0002-login.md)）。
+サーバーとDBは [Cloudflare](https://www.cloudflare.com/)（Workers と D1）、ログインは [Better Auth](https://www.better-auth.com/) を使います。本番に出す手順は [apps/api/CLAUDE.md](apps/api/CLAUDE.md) を参照してください。
 
 ## 開発
 

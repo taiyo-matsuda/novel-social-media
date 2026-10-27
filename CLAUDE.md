@@ -7,13 +7,13 @@
 
 ```
 apps/mobile/    スマホアプリ（Expo + Expo Router）。画面はここに作る
-apps/web/       サーバー（Next.js）。AI生成などのAPIと、将来のWeb版
+apps/api/       サーバー（Cloudflare Workers + Hono）。ログイン・DB・AI生成のAPI
 packages/core/  アプリとサーバーで共有するロジック（型・プロンプト・ランキング・APIの入出力）
-supabase/migrations/  DBスキーマ。追記のみ
+apps/api/migrations/  DBスキーマ（Cloudflare D1）。追記のみ
 docs/           プロダクト・設計・決定記録
 ```
 
-各アプリ固有の注意は `apps/mobile/CLAUDE.md` と `apps/web/CLAUDE.md` にある。
+各アプリ固有の注意は `apps/mobile/CLAUDE.md` と `apps/api/CLAUDE.md` にある。
 
 ## コマンド（リポジトリのルートで実行）
 
@@ -21,7 +21,7 @@ docs/           プロダクト・設計・決定記録
 | -------------------------------------- | ------------------------------------- |
 | まとめて確認（lint・型・整形・テスト） | `pnpm check`                          |
 | スマホアプリの開発サーバー             | `pnpm dev:mobile`                     |
-| サーバーの開発サーバー                 | `pnpm dev:web`                        |
+| サーバーの開発サーバー                 | `pnpm dev:api`                        |
 | 1パッケージだけ                        | `pnpm --filter @novel/core test` など |
 | 整形                                   | `pnpm format`                         |
 | ビルド                                 | `pnpm build`                          |
@@ -32,10 +32,12 @@ docs/           プロダクト・設計・決定記録
 
 - **ロジックは `packages/core` か各アプリの `features/` に純粋関数として切り出し、`*.test.ts` を隣に置く。** テストを先に書くか、同時に書く。
 - **アプリとサーバーでやり取りするデータの型とスキーマは `packages/core/src/api` に置く。** サーバーは受け取ったら必ず zod で検証する。
-- **AIのAPIキーはアプリに入れない。** AI呼び出しは必ずサーバー（apps/web）経由。
-- **テストで Claude API を呼ばない。** `FakeNovelGenerator`（`@novel/core/ai`）を使う。AIやDBを使う処理は依存を引数で受け取る形にする（例：`apps/web/src/features/generation`）。
+- **AIのAPIキーはアプリに入れない。** AI呼び出しは必ずサーバー（apps/api）経由。
+- **テストで Claude API を呼ばない。** `FakeNovelGenerator`（`@novel/core/ai`）を使う。AIやDBを使う処理は依存を引数で受け取る形にする（例：`apps/api/src/features/generation`）。
 - **プロンプトは `packages/core/src/ai/prompts.ts` に集める。** 変えたらテストの期待値も見直す。
-- **DBの変更は新しいマイグレーションファイルで行う。** 既存のファイルは書き換えない。新しいテーブルには必ずRLSを有効にしてポリシーを書く。
+- **DBの変更は新しいマイグレーションファイルで行う。** 既存のファイルは書き換えない。
+- **アプリはDBに直接触らない。** 読み書きは必ず apps/api 経由。D1 には RLS がないので、利用者のデータを扱うクエリは必ずログイン中の利用者IDで絞る。`user` 表のメールアドレスを他人向けの API で返さない。
+- **ログインは Better Auth（メールアドレス＋パスワード、確認メールなし）。** 方式を変えるときは `docs/decisions/` を更新する。
 - **秘密情報をコードやログに出さない。** `.env.local` は読まない。新しい環境変数は各アプリの `.env.example` に追加する。
 - MVP範囲外（課金・送金・翻訳・漫画連携）は、頼まれない限り実装しない。
 - 大きな方針を決めたら `docs/decisions/` に短い記録を追加する。

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  authErrorMessage,
   isValidEmail,
-  isValidOtp,
+  isValidPassword,
   normalizeEmail,
-  normalizeOtp,
 } from "./index";
 
 describe("メールアドレス", () => {
@@ -20,16 +20,30 @@ describe("メールアドレス", () => {
   });
 });
 
-describe("ワンタイムコード", () => {
-  it("空白・ハイフン・全角数字を吸収する", () => {
-    expect(normalizeOtp("123 456")).toBe("123456");
-    expect(normalizeOtp("123-456")).toBe("123456");
-    expect(normalizeOtp("１２３４５６")).toBe("123456");
+describe("パスワード", () => {
+  it("8文字以上128文字以下だけ通す", () => {
+    expect(isValidPassword("1234567")).toBe(false);
+    expect(isValidPassword("12345678")).toBe(true);
+    expect(isValidPassword("a".repeat(128))).toBe(true);
+    expect(isValidPassword("a".repeat(129))).toBe(false);
+  });
+});
+
+describe("authErrorMessage", () => {
+  it("よくあるエラーを日本語にする", () => {
+    expect(authErrorMessage({ code: "USER_ALREADY_EXISTS" })).toContain(
+      "すでに登録",
+    );
+    expect(
+      authErrorMessage({ code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" }),
+    ).toContain("すでに登録");
+    expect(authErrorMessage({ code: "INVALID_EMAIL_OR_PASSWORD" })).toContain(
+      "違います",
+    );
+    expect(authErrorMessage({ status: 429 })).toContain("時間をおいて");
   });
 
-  it("6桁のときだけ通す", () => {
-    expect(isValidOtp("123456")).toBe(true);
-    expect(isValidOtp("12345")).toBe(false);
-    expect(isValidOtp("1234567")).toBe(false);
+  it("知らないエラーは汎用の案内にする", () => {
+    expect(authErrorMessage({})).toContain("もう一度");
   });
 });

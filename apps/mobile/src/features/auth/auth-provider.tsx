@@ -1,5 +1,4 @@
 import { canFinish } from "@novel/core/openings";
-import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import {
   createContext,
   useCallback,
@@ -9,15 +8,15 @@ import {
   type ReactNode,
 } from "react";
 
-import { fetchOwnChoices } from "@/features/openings/openings-repo";
-import { getSupabase } from "@/lib/supabase";
+import { fetchOwnChoices } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
+
+type SessionUser = { id: string; email: string; name: string };
 
 type AuthState = {
-  /** 接続先が未設定なら null */
-  db: SupabaseClient | null;
   /** 起動時にログイン状態を読み込み終えたか */
   initialized: boolean;
-  session: Session | null;
+  user: SessionUser | null;
   /** 冒頭文で好みを伝え終えたか。確認中は null */
   onboarded: boolean | null;
   /** 冒頭文を選び終えたあとに呼び、onboarded を取り直す */
@@ -28,9 +27,9 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [db] = useState(getSupabase);
-  const [initialized, setInitialized] = useState(db === null);
-  const [session, setSession] = useState<Session | null>(null);
+  const { data, isPending } = authClient.useSession();
+  const user = data?.user ?? null;
+  const userId = user?.id;
   // どの利用者について確認した結果かも持ち、ログインし直したら確認中に戻す
   const [checked, setChecked] = useState<{
     userId: string;
@@ -38,48 +37,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } | null>(null);
 
   useEffect(() => {
-    if (!db) return;
-    db.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setInitialized(true);
-    });
-    const { data } = db.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-    });
-    return () => data.subscription.unsubscribe();
-  }, [db]);
-
-  const userId = session?.user.id;
-
-  useEffect(() => {
-    if (!db || !userId) return;
+    if (!userId) return;
     let active = true;
-    void checkOnboarded(db, userId).then((onboarded) => {
+    void checkOnboarded().then((onboarded) => {
       if (active) setChecked({ userId, onboarded });
     });
     return () => {
       active = false;
     };
-  }, [db, userId]);
+  }, [userId]);
 
   const refreshOnboarded = useCallback(async () => {
-    if (!db || !userId) return;
-    setChecked({ userId, onboarded: await checkOnboarded(db, userId) });
-  }, [db, userId]);
+    if (!userId) return;
+    setChecked({ userId, onboarded: await checkOnboarded() });
+  }, [userId]);
 
   const onboarded =
     userId && checked?.userId === userId ? checked.onboarded : null;
 
   const signOut = useCallback(async () => {
-    await db?.auth.signOut();
-  }, [db]);
+    await authClient.signOut();
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
-        db,
-        initialized,
-        session,
+        initialized: !isPending,
+        user,
         onboarded,
         refreshOnboarded,
         signOut,
@@ -91,12 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 /** 冒頭文で好みを伝え終えたか。確認できなければ false（冒頭文の画面に進んでも害はない） */
-async function checkOnboarded(
-  db: SupabaseClient,
-  userId: string,
-): Promise<boolean> {
+async function checkOnboarded(): Promise<boolean> {
   try {
-    return canFinish(await fetchOwnChoices(db, userId));
+    return canFinish(await fetchOwnChoices());
   } catch {
     return false;
   }
@@ -109,11 +90,8 @@ export function useAuth(): AuthState {
 }
 
 /** ログイン後の画面用。ログインしていなければ例外（ルートの Protected で守っている前提） */
-export function useSignedIn(): {
-  db: SupabaseClient;
-  userId: string;
-} & AuthState {
+export function useSignedIn(): AuthState & { user: SessionUser } {
   const auth = useAuth();
-  if (!auth.db || !auth.session) throw new Error("ログインが必要です");
-  return { ...auth, db: auth.db, userId: auth.session.user.id };
+  if (!auth.user) throw new Error("ログインが必要です");
+  return { ...auth, user: auth.user };
 }

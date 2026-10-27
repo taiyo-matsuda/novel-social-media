@@ -6,7 +6,7 @@ import { useSignedIn } from "@/features/auth/auth-provider";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { session, signOut } = useSignedIn();
+  const { user, signOut } = useSignedIn();
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={[styles.title, { color: colors.text }]}>
@@ -21,7 +21,7 @@ export default function HomeScreen() {
         onPress={() => router.push("/openings")}
       />
       <Text style={[styles.note, { color: colors.text }]}>
-        {session?.user.email} でログイン中
+        {user.email} でログイン中
       </Text>
       <Button label="ログアウト" variant="secondary" onPress={signOut} />
     </ScrollView>

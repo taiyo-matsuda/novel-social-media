@@ -26,13 +26,13 @@ export default function RootLayout() {
  * - 好みを伝え終えた：ホーム（冒頭文の画面はホームから選び直しに使う）
  */
 function RootStack() {
-  const { initialized, session, onboarded } = useAuth();
+  const { initialized, user, onboarded } = useAuth();
 
   useEffect(() => {
     if (initialized) SplashScreen.hide();
   }, [initialized]);
 
-  const signedIn = session !== null;
+  const signedIn = user !== null;
   return (
     <Stack>
       <Stack.Protected guard={signedIn && onboarded === true}>
