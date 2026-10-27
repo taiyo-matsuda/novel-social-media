@@ -1,0 +1,11 @@
+# ローカル開発用。.dev.vars にコピーして使う（.dev.vars はコミットしない）
+
+# ログインの署名に使う秘密の文字列。`openssl rand -base64 32` などで作る
+BETTER_AUTH_SECRET=
+# このサーバーのURL
+BETTER_AUTH_URL=http://localhost:8787
+# アプリをブラウザで試すときの開発サーバー（カンマ区切り）
+TRUSTED_ORIGINS=http://localhost:8081
+
+# Claude API（https://console.anthropic.com/ で発行）。空ならAIはフェイクで動く
+ANTHROPIC_API_KEY=

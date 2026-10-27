@@ -2,15 +2,16 @@
   "name": "novel-social-media",
   "private": true,
   "scripts": {
-    "dev:web": "pnpm --filter @novel/web dev",
-    "dev:mobile": "pnpm --filter @novel/mobile start",
+    "dev:api": "pnpm --filter @novel/api dev",
+    "dev:mobile": "cd apps/mobile && flutter run",
     "build": "pnpm -r --if-present build",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test"
+    "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test && pnpm check:mobile",
+    "check:mobile": "cd apps/mobile && dart format --output=none --set-exit-if-changed lib test && flutter analyze && flutter test"
   },
   "devDependencies": {
     "prettier": "^3.9.10",

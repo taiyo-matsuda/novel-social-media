@@ -25,7 +25,19 @@ jobs:
       - run: pnpm format:check
       - run: pnpm test
       - run: pnpm build
-      - name: スマホアプリがバンドルできるか確認
-        run: pnpm --filter @novel/mobile exec expo export --platform web --output-dir dist
-        env:
-          CI: 1
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
