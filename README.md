@@ -18,7 +18,7 @@ pnpm dev:web      # サーバー
 pnpm dev:mobile   # アプリ（スマホの Expo Go でQRコードを読む）
 ```
 
-DBは [Supabase](https://supabase.com/) を使います。`supabase/migrations/` のSQLをプロジェクトに適用してください。
+DBは [Supabase](https://supabase.com/) を使います。`supabase/migrations/` のSQLをプロジェクトに適用し、ログイン用のメールテンプレートにコード（`{{ .Token }}`）を入れてください（[docs/decisions/0002-login.md](docs/decisions/0002-login.md)）。
 
 ## 開発
 

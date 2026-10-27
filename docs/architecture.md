@@ -39,8 +39,13 @@ Supabase (PostgreSQL + Auth)
 - システムプロンプトはキャッシュ対象（`cache_control`）にして、毎回の入力コストを下げる
 - 安全分類器で断られた場合はサーバー側フォールバック（`fallbacks: "default"`）で別モデルが続行する。それでも断られたら `AiRefusalError`（422）
 
+## ログインと最初の画面
+
+1. 未ログインならログイン画面（`apps/mobile/src/app/sign-in.tsx`）。メールに届く6桁のコードでログインする（[決定記録](decisions/0002-login.md)）
+2. 好みが未入力なら冒頭文の画面（`openings.tsx`）。1つずつ「読みたい／読みたくない」を選び、`opening_choices` に保存する
+3. 好みを伝え終えたらホーム。どの画面を見せるかはルートの `_layout.tsx` が `Stack.Protected` で切り替える
+
 ## 今後決めること
 
-- アプリ側のログイン実装（Supabase Auth のセッション保存方法）
 - ランキング集計：`reading_events` は本人しか読めないので、集計はサーバー側（service role または集計ビュー）で行う
 - 生成のジョブ化：生成が長くなったら、キューに入れて完了を通知する形に変える
