@@ -40,7 +40,8 @@ export function createApp(
       origin: (origin, c) =>
         webOrigins(c.env).includes(origin) ? origin : null,
       credentials: true,
-      allowHeaders: ["Content-Type"],
+      allowHeaders: ["Content-Type", "Authorization"],
+      exposeHeaders: ["set-auth-token"],
       allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     }),
   );

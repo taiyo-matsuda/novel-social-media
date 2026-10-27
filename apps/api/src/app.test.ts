@@ -79,6 +79,35 @@ describe("ログイン", () => {
     expect(ng.status).toBe(401);
   });
 
+  it("スマホアプリは set-auth-token のトークンを Bearer で送ってログイン状態を使え、ログアウトで無効になる", async () => {
+    // アプリは Origin もクッキーも付けずに送る
+    const res = await request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "hanako@example.com",
+        password: "password123",
+        name: "読者",
+      }),
+    });
+    const token = res.headers.get("set-auth-token");
+    expect(token).toBeTruthy();
+    const bearer = { Authorization: `Bearer ${token}` };
+
+    expect(
+      (await request("/api/opening-choices", { headers: bearer })).status,
+    ).toBe(200);
+
+    const signOut = await request("/api/auth/sign-out", {
+      method: "POST",
+      headers: bearer,
+    });
+    expect(signOut.status).toBe(200);
+    expect(
+      (await request("/api/opening-choices", { headers: bearer })).status,
+    ).toBe(401);
+  });
+
   it("短すぎるパスワードでは登録できない", async () => {
     const res = await request(
       "/api/auth/sign-up/email",
