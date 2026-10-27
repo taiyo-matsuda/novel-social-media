@@ -122,7 +122,14 @@ class ApiClient {
     'password': password,
   });
 
-  Future<SessionUser> _signIn(String path, Map<String, String> body) async {
+  /// 端末で Google にログインして受け取った ID トークンでログインする。初めてなら登録される
+  Future<SessionUser> signInWithGoogle(String idToken) =>
+      _signIn('/api/auth/sign-in/social', {
+        'provider': 'google',
+        'idToken': {'token': idToken},
+      });
+
+  Future<SessionUser> _signIn(String path, Map<String, Object> body) async {
     final res = await _send('POST', path, body: body);
     final json = _decode(res);
     final map = json is Map<String, dynamic> ? json : const <String, dynamic>{};

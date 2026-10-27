@@ -19,7 +19,7 @@ import {
 import { d1OpeningsStore } from "./features/openings/d1-openings-store";
 import { createNovelGenerator } from "./lib/ai";
 import { AiRefusalError } from "./lib/ai/claude";
-import { createAuth } from "./lib/auth";
+import { createAuth, type AuthDeps } from "./lib/auth";
 
 type AppEnv = { Bindings: Env; Variables: { userId: string } };
 
@@ -28,7 +28,10 @@ type AppEnv = { Bindings: Env; Variables: { userId: string } };
  * テストでは createGenerator を差し替えて Claude API を呼ばないようにする。
  */
 export function createApp(
-  deps: { createGenerator?: (env: Env) => NovelGenerator } = {},
+  deps: {
+    createGenerator?: (env: Env) => NovelGenerator;
+    auth?: AuthDeps;
+  } = {},
 ) {
   const createGenerator = deps.createGenerator ?? createNovelGenerator;
   const app = new Hono<AppEnv>();
@@ -47,11 +50,11 @@ export function createApp(
   );
 
   app.on(["GET", "POST"], "/api/auth/*", (c) =>
-    createAuth(c.env).handler(c.req.raw),
+    createAuth(c.env, deps.auth).handler(c.req.raw),
   );
 
   const requireUser = createMiddleware<AppEnv>(async (c, next) => {
-    const session = await createAuth(c.env).api.getSession({
+    const session = await createAuth(c.env, deps.auth).api.getSession({
       headers: c.req.raw.headers,
     });
     if (!session) return c.json({ error: "ログインが必要です" }, 401);

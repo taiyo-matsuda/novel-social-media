@@ -6,11 +6,12 @@ import 'features/home/home_screen.dart';
 import 'features/openings/openings_screen.dart';
 import 'services/api_client.dart';
 import 'services/config.dart';
+import 'services/google_sign_in.dart';
 import 'services/token_store.dart';
 
 void main() {
   final api = ApiClient(baseUrl: apiUrl, tokens: SecureTokenStore());
-  final auth = AuthController(api)..restore();
+  final auth = AuthController(api, PluginGoogleIdTokenSource())..restore();
   runApp(NovelApp(api: api, auth: auth));
 }
 

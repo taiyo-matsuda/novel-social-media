@@ -76,6 +76,22 @@ void main() {
       expect(tokens.token, isNull);
     });
 
+    test('Google の ID トークンを sign-in/social に送ってログインする', () async {
+      final api = clientWith(
+        (_) async => jsonResponse(
+          {'redirect': false, 'token': 'raw', 'user': user},
+          headers: {'set-auth-token': 'signed.token'},
+        ),
+      );
+      await api.signInWithGoogle('google-id-token');
+      expect(sent.single.url.path, '/api/auth/sign-in/social');
+      expect(jsonDecode(sent.single.body), {
+        'provider': 'google',
+        'idToken': {'token': 'google-id-token'},
+      });
+      expect(tokens.token, 'signed.token');
+    });
+
     test('トークンがなければサーバーに聞かずに未ログイン', () async {
       final api = clientWith((_) async => fail('呼ばれないはず'));
       expect(await api.getSession(), isNull);

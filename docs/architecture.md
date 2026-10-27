@@ -13,16 +13,16 @@
 Cloudflare D1 (SQLite)
 ```
 
-| 層           | 採用                                                              | 理由                                                                    |
-| ------------ | ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| スマホアプリ | Flutter（Dart）                                                   | iOS / Android を1つのコードで作れる。Mac の Xcode でビルドする          |
-| サーバー     | Cloudflare Workers + Hono + TypeScript                            | AIのAPIキーを安全に持てる。世界中で近い場所から応答でき、無料枠が大きい |
-| 共有ロジック | packages/core（TypeScript）                                       | サーバー側の型・プロンプト・ランキング。アプリは Dart で書き写す        |
-| DB           | Cloudflare D1（SQLite）                                           | Workers から設定なしで使える                                            |
-| 認証         | Better Auth（メールアドレス＋パスワード、bearer プラグイン）      | D1 に直接つながる。アプリはトークンを Bearer で送る                     |
-| AI           | Claude API（`@anthropic-ai/sdk`）                                 | 日本語の長文生成。モデルは `ANTHROPIC_MODEL` で切り替え                 |
-| テスト       | Vitest（サーバー）、flutter test（アプリ）                        |                                                                         |
-| ホスティング | Cloudflare Workers（サーバー）、App Store / Google Play（アプリ） |                                                                         |
+| 層           | 採用                                                                        | 理由                                                                    |
+| ------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| スマホアプリ | Flutter（Dart）                                                             | iOS / Android を1つのコードで作れる。Mac の Xcode でビルドする          |
+| サーバー     | Cloudflare Workers + Hono + TypeScript                                      | AIのAPIキーを安全に持てる。世界中で近い場所から応答でき、無料枠が大きい |
+| 共有ロジック | packages/core（TypeScript）                                                 | サーバー側の型・プロンプト・ランキング。アプリは Dart で書き写す        |
+| DB           | Cloudflare D1（SQLite）                                                     | Workers から設定なしで使える                                            |
+| 認証         | Better Auth（Google の ID トークン・メール＋パスワード、bearer プラグイン） | D1 に直接つながる。アプリはトークンを Bearer で送る                     |
+| AI           | Claude API（`@anthropic-ai/sdk`）                                           | 日本語の長文生成。モデルは `ANTHROPIC_MODEL` で切り替え                 |
+| テスト       | Vitest（サーバー）、flutter test（アプリ）                                  |                                                                         |
+| ホスティング | Cloudflare Workers（サーバー）、App Store / Google Play（アプリ）           |                                                                         |
 
 D1 には PostgreSQL の RLS のような仕組みがないので、「本人だけ書ける・ログイン者だけ読める」は API のコードで守る。アプリが DB に直接触ることはない。
 

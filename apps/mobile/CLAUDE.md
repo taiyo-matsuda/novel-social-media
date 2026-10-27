@@ -15,7 +15,8 @@ test/                 lib/ と同じ並びでテストを置く（*_test.dart）
 ## このアプリでのルール
 
 - サーバーの呼び出しは `lib/services/api_client.dart` にまとめる。型の正は `packages/core/src/api`（TypeScript）なので、API を変えたら両方を直す
-- ログインは Better Auth の bearer プラグイン。トークンは `TokenStore`（`flutter_secure_storage`）に保存し、`Authorization: Bearer` で送る。トークンをログに出さない
+- ログインは主に Google（`lib/services/google_sign_in.dart` で端末上でログインし、ID トークンをサーバーへ送る）。クライアントIDは `--dart-define=GOOGLE_IOS_CLIENT_ID=... --dart-define=GOOGLE_SERVER_CLIENT_ID=...` で渡し、iOS は `ios/Runner/Info.plist` の URL スキームに iOS クライアントIDを逆順にしたものを入れる
+- ログイン状態は Better Auth の bearer プラグイン。トークンは `TokenStore`（`flutter_secure_storage`）に保存し、`Authorization: Bearer` で送る。トークンをログに出さない
 - テストではサーバーを呼ばない。`ApiClient` に `package:http/testing.dart` の `MockClient` を渡すか、`ApiClient` を継承した偽物を使う（`test/features/auth/auth_controller_test.dart`）
 - 画面の状態は `ChangeNotifier`（`AuthController`）と `StatefulWidget` で持つ。状態管理のパッケージは必要になるまで入れない
 - パッケージの追加は `flutter pub add <名前>`

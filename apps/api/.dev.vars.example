@@ -7,5 +7,8 @@ BETTER_AUTH_URL=http://localhost:8787
 # アプリをブラウザで試すときの開発サーバー（カンマ区切り）
 TRUSTED_ORIGINS=http://localhost:8081
 
+# Google ログイン（Google Cloud の「認証情報」で作った OAuth クライアントID。Web・iOS・Android をカンマ区切り）。空なら Google ログインは無効
+GOOGLE_CLIENT_IDS=
+
 # Claude API（https://console.anthropic.com/ で発行）。空ならAIはフェイクで動く
 ANTHROPIC_API_KEY=

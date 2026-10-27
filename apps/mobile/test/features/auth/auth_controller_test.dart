@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novel_sns/features/auth/auth_controller.dart';
+import 'package:novel_sns/features/auth/validation.dart';
 import 'package:novel_sns/services/api_client.dart';
+import 'package:novel_sns/services/google_sign_in.dart';
 import 'package:novel_sns/services/token_store.dart';
 
 const taro = SessionUser(id: 'u1', email: 'taro@example.com', name: '読者');
@@ -34,6 +36,15 @@ class FakeApi extends ApiClient {
     required String name,
   }) => signIn(email: email, password: password);
 
+  String? googleIdToken;
+
+  @override
+  Future<SessionUser> signInWithGoogle(String idToken) async {
+    googleIdToken = idToken;
+    if (signInError != null) throw signInError!;
+    return session = taro;
+  }
+
   @override
   Future<void> signOut() async => session = null;
 
@@ -41,13 +52,66 @@ class FakeApi extends ApiClient {
   Future<Map<int, bool>> fetchOwnChoices() async => choices;
 }
 
+/// 端末の Google ログインの偽物。token が null なら途中でやめた扱い
+class FakeGoogle implements GoogleIdTokenSource {
+  String? token = 'google-id-token';
+  bool fail = false;
+  bool signedOut = false;
+
+  @override
+  Future<String?> signIn() async {
+    if (fail) throw Exception('network');
+    return token;
+  }
+
+  @override
+  Future<void> signOut() async => signedOut = true;
+}
+
 void main() {
   late FakeApi api;
+  late FakeGoogle google;
   late AuthController auth;
 
   setUp(() {
     api = FakeApi();
-    auth = AuthController(api);
+    google = FakeGoogle();
+    auth = AuthController(api, google);
+  });
+
+  group('Google でログイン', () {
+    test('受け取った ID トークンをサーバーに渡してログインする', () async {
+      api.choices = {1: true};
+      expect(await auth.signInWithGoogle(), isNull);
+      expect(api.googleIdToken, 'google-id-token');
+      expect(auth.user?.email, 'taro@example.com');
+      expect(auth.onboarded, isFalse);
+    });
+
+    test('途中でやめたら何も出さず、未ログインのまま', () async {
+      google.token = null;
+      expect(await auth.signInWithGoogle(), isNull);
+      expect(api.googleIdToken, isNull);
+      expect(auth.user, isNull);
+    });
+
+    test('サーバーが断ったらメッセージを返す', () async {
+      api.signInError = ApiException(401, 'x');
+      expect(await auth.signInWithGoogle(), googleErrorMessage);
+      expect(auth.user, isNull);
+    });
+
+    test('端末側で失敗してもメッセージを返す', () async {
+      google.fail = true;
+      expect(await auth.signInWithGoogle(), googleErrorMessage);
+    });
+
+    test('ログアウトすると Google からもログアウトする', () async {
+      await auth.signInWithGoogle();
+      await auth.signOut();
+      expect(google.signedOut, isTrue);
+      expect(auth.user, isNull);
+    });
   });
 
   test('ログインしていなければ、復元後は未ログイン', () async {
