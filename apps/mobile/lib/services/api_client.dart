@@ -24,6 +24,94 @@ class SessionUser {
   );
 }
 
+/// 作品一覧の1行（packages/core/src/api の WorkSummary）
+class WorkSummary {
+  const WorkSummary({
+    required this.id,
+    required this.title,
+    required this.published,
+    required this.chapterCount,
+    required this.publishedAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String title;
+  final bool published;
+  final int chapterCount;
+  final DateTime? publishedAt;
+  final DateTime updatedAt;
+
+  factory WorkSummary.fromJson(Map<String, dynamic> json) => WorkSummary(
+    id: json['id'] as String,
+    title: json['title'] as String,
+    published: json['status'] == 'published',
+    chapterCount: json['chapterCount'] as int,
+    publishedAt: _parseTime(json['publishedAt'] as String?),
+    updatedAt: _parseTime(json['updatedAt'] as String)!,
+  );
+}
+
+/// 作品の1章（packages/core/src/api の ChapterView）
+class Chapter {
+  const Chapter({
+    required this.position,
+    required this.title,
+    required this.body,
+    this.plotRequest,
+  });
+
+  final int position;
+  final String title;
+  final String body;
+
+  /// この章を書いてもらうときに出した展開リクエスト
+  final String? plotRequest;
+
+  factory Chapter.fromJson(Map<String, dynamic> json) => Chapter(
+    position: json['position'] as int,
+    title: json['title'] as String,
+    body: json['body'] as String,
+    plotRequest: json['plotRequest'] as String?,
+  );
+}
+
+/// 本人の作品と全章（GET /api/works/:workId）
+class Work {
+  const Work({required this.summary, required this.chapters});
+
+  final WorkSummary summary;
+  final List<Chapter> chapters;
+
+  factory Work.fromJson(Map<String, dynamic> json) => Work(
+    summary: WorkSummary.fromJson(json),
+    chapters: (json['chapters'] as List)
+        .map((c) => Chapter.fromJson(c as Map<String, dynamic>))
+        .toList(),
+  );
+}
+
+/// 章を書いてもらった結果（POST /api/chapters）
+class GeneratedChapter {
+  const GeneratedChapter({required this.workId, required this.chapter});
+
+  final String workId;
+  final Chapter chapter;
+
+  factory GeneratedChapter.fromJson(Map<String, dynamic> json) =>
+      GeneratedChapter(
+        workId: json['workId'] as String,
+        chapter: Chapter.fromJson(json['chapter'] as Map<String, dynamic>),
+      );
+}
+
+/// D1 の datetime('now')（"2026-10-28 01:00:00"、UTC）と ISO 形式のどちらも読む
+DateTime? _parseTime(String? value) {
+  if (value == null) return null;
+  final iso = value.contains('T') ? value : '${value.replaceFirst(' ', 'T')}Z';
+  return DateTime.parse(iso);
+}
+
 /// サーバーがエラーを返した。[code] は Better Auth のエラーコード（ログイン以外は null）
 class ApiException implements Exception {
   ApiException(this.status, this.message, {this.code});
@@ -180,4 +268,53 @@ class ApiClient {
 
   /// 選び直すときに、これまでの答えを消す。
   Future<void> clearChoices() => _request('DELETE', '/api/opening-choices');
+
+  // ---- 小説を書く ----
+
+  /// AIに章を書いてもらう。[workId] がなければ新しい作品の第1章になる。
+  /// 生成には数十秒かかることがある。
+  Future<GeneratedChapter> generateChapter({
+    String? workId,
+    String? plotRequest,
+  }) async {
+    final json = await _request(
+      'POST',
+      '/api/chapters',
+      body: {
+        'workId': ?workId,
+        if (plotRequest != null && plotRequest.trim().isNotEmpty)
+          'plotRequest': plotRequest.trim(),
+      },
+    ) as Map<String, dynamic>;
+    return GeneratedChapter.fromJson(json);
+  }
+
+  /// 本人の作品を、最後に章が増えた順に取得する。
+  Future<List<WorkSummary>> fetchOwnWorks() async {
+    final json = await _request('GET', '/api/works') as Map<String, dynamic>;
+    return (json['works'] as List)
+        .map((w) => WorkSummary.fromJson(w as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 本人の作品と全章を取得する。
+  Future<Work> fetchOwnWork(String workId) async {
+    final json =
+        await _request('GET', '/api/works/$workId') as Map<String, dynamic>;
+    return Work.fromJson(json['work'] as Map<String, dynamic>);
+  }
+
+  /// 題名を変える・公開／非公開を切り替える。
+  Future<WorkSummary> updateWork(
+    String workId, {
+    String? title,
+    bool? published,
+  }) async {
+    final json = await _request(
+      'PATCH',
+      '/api/works/$workId',
+      body: {'title': ?title, 'published': ?published},
+    ) as Map<String, dynamic>;
+    return WorkSummary.fromJson(json);
+  }
 }

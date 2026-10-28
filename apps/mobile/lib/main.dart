@@ -45,6 +45,7 @@ class NovelApp extends StatelessWidget {
       null => const _Loading(),
       false => OpeningsScreen(api: api, onFinish: auth.refreshOnboarded),
       true => HomeScreen(
+        api: api,
         auth: auth,
         onChooseAgain: () => Navigator.of(context).push(
           MaterialPageRoute<void>(

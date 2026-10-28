@@ -3,8 +3,12 @@ import {
   generateChapterRequestSchema,
   openingIdSchema,
   saveOpeningChoiceRequestSchema,
+  updateWorkRequestSchema,
+  workIdSchema,
+  type GetOwnWorkResponse,
   type ListOpeningChoicesResponse,
   type ListOpeningsResponse,
+  type ListOwnWorksResponse,
 } from "@novel/core/api";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -17,6 +21,7 @@ import {
   WorkNotFoundError,
 } from "./features/generation/generate-next-chapter";
 import { d1OpeningsStore } from "./features/openings/d1-openings-store";
+import { d1WorksStore } from "./features/works/d1-works-store";
 import { createNovelGenerator } from "./lib/ai";
 import { AiRefusalError } from "./lib/ai/claude";
 import { createAuth } from "./lib/auth";
@@ -42,7 +47,7 @@ export function createApp(
       credentials: true,
       allowHeaders: ["Content-Type", "Authorization"],
       exposeHeaders: ["set-auth-token"],
-      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),
   );
 
@@ -119,6 +124,38 @@ export function createApp(
       }
       throw e;
     }
+  });
+
+  app.get("/api/works", requireUser, async (c) => {
+    const works = await d1WorksStore(c.env.DB).listOwn(c.get("userId"));
+    return c.json<ListOwnWorksResponse>({ works });
+  });
+
+  app.get("/api/works/:workId", requireUser, async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const work = await d1WorksStore(c.env.DB).getOwn(
+      c.get("userId"),
+      workId.data,
+    );
+    if (!work) return c.json({ error: "作品が見つかりません" }, 404);
+    return c.json<GetOwnWorkResponse>({ work });
+  });
+
+  app.patch("/api/works/:workId", requireUser, async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const body = updateWorkRequestSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: "リクエストが不正です" }, 400);
+    const work = await d1WorksStore(c.env.DB).updateOwn(
+      c.get("userId"),
+      workId.data,
+      body.data,
+    );
+    if (!work) return c.json({ error: "作品が見つかりません" }, 404);
+    return c.json(work);
   });
 
   return app;

@@ -34,12 +34,22 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 
 ## 小説生成の流れ
 
-1. アプリが `POST /api/chapters` を呼ぶ（`apps/mobile/lib/services/api_client.dart`、まだ画面はない）
+1. アプリが `POST /api/chapters` を呼ぶ。第1章は「新しい小説」画面（`lib/features/writing/new_work_screen.dart`）から「どんな話を読みたいか」を、続きは作品の画面（`work_screen.dart`）から「次はこうしてほしい」を、どちらも任意で `plotRequest` として送る
 2. サーバーがログインを確かめ、入力を `generateChapterRequestSchema` で検証する
 3. `generateNextChapter()` が好みと過去の章を集め、`NovelGenerator` に章を書かせる（APIキーがなければフェイク）
 4. 生成した章を `chapters` に保存して返す
 
 生成は数十秒かかることがある。アプリには進行中であることを表示する。
+
+## 自分の作品
+
+| API                        | 内容                                                   |
+| -------------------------- | ------------------------------------------------------ |
+| `GET /api/works`           | 本人の作品を、最後に章が増えた順に返す（ホームの一覧） |
+| `GET /api/works/:workId`   | 本人の作品と全章、各章の展開リクエスト                 |
+| `PATCH /api/works/:workId` | 題名の変更（`title`）と公開・非公開（`published`）     |
+
+どれも `author_id` をログイン中の利用者IDで絞る（`apps/api/src/features/works/d1-works-store.ts`）。他人の作品は 404 にする。公開作品を他人が読む API はランキングと一緒に作る。
 
 ## AI呼び出しの方針
 

@@ -31,7 +31,12 @@ export function buildChapterPrompt(req: ChapterRequest): string {
     );
   }
   if (plotRequest) {
-    parts.push(`## 読者からの展開リクエスト\n${plotRequest}`);
+    // 第1章では「どんな話を読みたいか」、2章目以降では「次はこうしてほしい」として渡す
+    parts.push(
+      previousChapters.length === 0
+        ? `## 読者が読みたい話\n${plotRequest}`
+        : `## 読者からの展開リクエスト\n${plotRequest}`,
+    );
   }
   parts.push(
     previousChapters.length === 0

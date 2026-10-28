@@ -144,4 +144,78 @@ void main() {
       );
     });
   });
+
+  group('小説を書く', () {
+    test('空の展開リクエストは送らず、新しい作品の章を受け取る', () async {
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'workId': 'w1',
+          'chapter': {'position': 1, 'title': '古書店', 'body': '本文'},
+        }),
+      );
+      final res = await api.generateChapter(plotRequest: '  ');
+      expect(jsonDecode(sent.single.body), <String, dynamic>{});
+      expect(res.workId, 'w1');
+      expect(res.chapter.title, '古書店');
+    });
+
+    test('続きの章には作品IDと展開リクエストを送る', () async {
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'workId': 'w1',
+          'chapter': {'position': 2, 'title': '二', 'body': '本文'},
+        }),
+      );
+      await api.generateChapter(workId: 'w1', plotRequest: ' 犯人を明かして ');
+      expect(jsonDecode(sent.single.body), {
+        'workId': 'w1',
+        'plotRequest': '犯人を明かして',
+      });
+    });
+
+    test('作品と章を読み、D1 の日時を UTC として解釈する', () async {
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'work': {
+            'id': 'w1',
+            'title': '古書店',
+            'status': 'published',
+            'chapterCount': 1,
+            'publishedAt': '2026-10-28 01:00:00',
+            'updatedAt': '2026-10-28 00:30:00',
+            'chapters': [
+              {
+                'position': 1,
+                'title': '古書店',
+                'body': '本文',
+                'plotRequest': null,
+              },
+            ],
+          },
+        }),
+      );
+      final work = await api.fetchOwnWork('w1');
+      expect(sent.single.url.path, '/api/works/w1');
+      expect(work.summary.published, isTrue);
+      expect(work.summary.publishedAt, DateTime.utc(2026, 10, 28, 1));
+      expect(work.chapters.single.plotRequest, isNull);
+    });
+
+    test('公開状態の変更は PATCH で送る', () async {
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'id': 'w1',
+          'title': '古書店',
+          'status': 'draft',
+          'chapterCount': 1,
+          'publishedAt': null,
+          'updatedAt': '2026-10-28 00:30:00',
+        }),
+      );
+      final work = await api.updateWork('w1', published: false);
+      expect(sent.single.method, 'PATCH');
+      expect(jsonDecode(sent.single.body), {'published': false});
+      expect(work.published, isFalse);
+    });
+  });
 }

@@ -16,6 +16,16 @@ describe("buildChapterPrompt", () => {
     expect(prompt).not.toContain("これまでの章");
   });
 
+  it("第1章への希望は「読みたい話」として渡す", () => {
+    const prompt = buildChapterPrompt({
+      preference,
+      previousChapters: [],
+      plotRequest: "猫が探偵役の話",
+    });
+    expect(prompt).toContain("## 読者が読みたい話\n猫が探偵役の話");
+    expect(prompt).not.toContain("展開リクエスト");
+  });
+
   it("続きの章では前の章と展開リクエストを含める", () => {
     const prompt = buildChapterPrompt({
       preference,
@@ -23,7 +33,9 @@ describe("buildChapterPrompt", () => {
       plotRequest: "店主の秘密を明かしてほしい",
     });
     expect(prompt).toContain("### 第1章\n一章の本文");
-    expect(prompt).toContain("店主の秘密を明かしてほしい");
+    expect(prompt).toContain(
+      "## 読者からの展開リクエスト\n店主の秘密を明かしてほしい",
+    );
     expect(prompt).toContain("第2章を書いてください");
   });
 });

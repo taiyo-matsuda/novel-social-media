@@ -1,8 +1,11 @@
 import { FakeNovelGenerator } from "@novel/core/ai";
 import type {
   GenerateChapterResponse,
+  GetOwnWorkResponse,
   ListOpeningChoicesResponse,
   ListOpeningsResponse,
+  ListOwnWorksResponse,
+  WorkSummary,
 } from "@novel/core/api";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -231,5 +234,97 @@ describe("章の生成", () => {
       json("POST", { workId: first.workId }, hanako),
     );
     expect(other.status).toBe(404);
+  });
+});
+
+describe("自分の作品", () => {
+  async function generate(cookie: string, body: object = {}) {
+    const res = await request("/api/chapters", json("POST", body, cookie));
+    expect(res.status).toBe(200);
+    return (await res.json()) as GenerateChapterResponse;
+  }
+
+  async function listWorks(cookie: string) {
+    const res = await request("/api/works", { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    return ((await res.json()) as ListOwnWorksResponse).works;
+  }
+
+  it("ログインしていないと作品を読み書きできない", async () => {
+    expect((await request("/api/works")).status).toBe(401);
+  });
+
+  it("書いてもらった作品が一覧に並び、全章と展開リクエストを読める", async () => {
+    const taro = await signUp();
+    const first = await generate(taro, { plotRequest: "猫が探偵役の話" });
+    await generate(taro, {
+      workId: first.workId,
+      plotRequest: "犯人を明かして",
+    });
+
+    const works = await listWorks(taro);
+    expect(works).toHaveLength(1);
+    expect(works[0]).toMatchObject({
+      id: first.workId,
+      title: "第1章",
+      status: "draft",
+      chapterCount: 2,
+      publishedAt: null,
+    });
+
+    const res = await request(`/api/works/${first.workId}`, {
+      headers: { Cookie: taro },
+    });
+    const { work } = (await res.json()) as GetOwnWorkResponse;
+    expect(work.chapters.map((c) => [c.position, c.plotRequest])).toEqual([
+      [1, "猫が探偵役の話"],
+      [2, "犯人を明かして"],
+    ]);
+  });
+
+  it("題名を変えて公開・非公開にでき、他人は読むことも変えることもできない", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const { workId } = await generate(taro);
+
+    const patch = (cookie: string, body: object) =>
+      request(`/api/works/${workId}`, json("PATCH", body, cookie));
+
+    const published = await patch(taro, {
+      title: "古書店の少女",
+      published: true,
+    });
+    expect(published.status).toBe(200);
+    const work = (await published.json()) as WorkSummary;
+    expect(work).toMatchObject({ title: "古書店の少女", status: "published" });
+    expect(work.publishedAt).toBeTruthy();
+
+    const draft = (await (
+      await patch(taro, { published: false })
+    ).json()) as WorkSummary;
+    expect(draft).toMatchObject({ status: "draft", publishedAt: null });
+
+    expect((await patch(hanako, { published: true })).status).toBe(404);
+    expect(
+      (await request(`/api/works/${workId}`, { headers: { Cookie: hanako } }))
+        .status,
+    ).toBe(404);
+    expect(await listWorks(hanako)).toEqual([]);
+  });
+
+  it("不正な作品IDや変更内容は弾く", async () => {
+    const taro = await signUp();
+    const { workId } = await generate(taro);
+    expect(
+      (await request("/api/works/abc", { headers: { Cookie: taro } })).status,
+    ).toBe(404);
+    expect(
+      (
+        await request(
+          `/api/works/${workId}`,
+          json("PATCH", { title: "" }, taro),
+        )
+      ).status,
+    ).toBe(400);
   });
 });
