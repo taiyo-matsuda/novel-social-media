@@ -3,9 +3,13 @@ import 'package:flutter/foundation.dart';
 import '../../services/api_client.dart';
 import '../../services/google_sign_in.dart';
 import '../openings/deck.dart';
+import '../safety/safety.dart';
 import 'validation.dart';
 
 enum AuthMode { signUp, signIn }
+
+/// 退会の確認を途中でやめたときの戻り値
+const deleteCanceled = '';
 
 /// 表示名の初期値。あとでプロフィール画面から変えられるようにする
 const defaultName = '読者';
@@ -105,6 +109,48 @@ class AuthController extends ChangeNotifier {
     }
     try {
       // 次回、別の Google アカウントを選べるようにする
+      await _google.signOut();
+    } catch (_) {}
+    user = null;
+    onboarded = null;
+    notifyListeners();
+  }
+
+  /// パスワードで退会する。失敗したら画面に出す文を返し、成功したらログアウトした状態にする
+  Future<String?> deleteAccount(String password) async {
+    try {
+      await _api.deleteAccount(password: password);
+    } catch (e) {
+      return deleteAccountErrorMessage(e);
+    }
+    await _afterDelete();
+    return null;
+  }
+
+  /// Google でログインし直して本人か確かめてから退会する（パスワードのない人向け）。
+  /// やめたら [deleteCanceled] を返す（画面には出さない）
+  Future<String?> deleteAccountWithGoogle() async {
+    final userId = user?.id;
+    try {
+      final idToken = await _google.signIn();
+      if (idToken == null) return deleteCanceled;
+      // ログインし直すと新しいログイン状態になり、パスワードなしで退会できる
+      final again = await _api.signInWithGoogle(idToken);
+      if (again.id != userId) {
+        // 別の Google アカウントを選んだ。その人を消さないよう、ここで止める
+        await signOut();
+        return 'ログイン中のアカウントとは別の Google アカウントが選ばれたため、退会しませんでした。';
+      }
+      await _api.deleteAccount();
+    } catch (e) {
+      return deleteAccountErrorMessage(e);
+    }
+    await _afterDelete();
+    return null;
+  }
+
+  Future<void> _afterDelete() async {
+    try {
       await _google.signOut();
     } catch (_) {}
     user = null;

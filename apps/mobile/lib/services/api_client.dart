@@ -24,6 +24,187 @@ class SessionUser {
   );
 }
 
+/// 作品一覧の1行（packages/core/src/api の WorkSummary）
+class WorkSummary {
+  const WorkSummary({
+    required this.id,
+    required this.title,
+    required this.published,
+    required this.chapterCount,
+    required this.publishedAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String title;
+  final bool published;
+  final int chapterCount;
+  final DateTime? publishedAt;
+  final DateTime updatedAt;
+
+  factory WorkSummary.fromJson(Map<String, dynamic> json) => WorkSummary(
+    id: json['id'] as String,
+    title: json['title'] as String,
+    published: json['status'] == 'published',
+    chapterCount: json['chapterCount'] as int,
+    publishedAt: _parseTime(json['publishedAt'] as String?),
+    updatedAt: _parseTime(json['updatedAt'] as String)!,
+  );
+}
+
+/// 作品の1章（packages/core/src/api の ChapterView）
+class Chapter {
+  const Chapter({
+    required this.position,
+    required this.title,
+    required this.body,
+    this.plotRequest,
+  });
+
+  final int position;
+  final String title;
+  final String body;
+
+  /// この章を書いてもらうときに出した展開リクエスト
+  final String? plotRequest;
+
+  factory Chapter.fromJson(Map<String, dynamic> json) => Chapter(
+    position: json['position'] as int,
+    title: json['title'] as String,
+    body: json['body'] as String,
+    plotRequest: json['plotRequest'] as String?,
+  );
+}
+
+/// 本人の作品と全章（GET /api/works/:workId）
+class Work {
+  const Work({required this.summary, required this.chapters});
+
+  final WorkSummary summary;
+  final List<Chapter> chapters;
+
+  factory Work.fromJson(Map<String, dynamic> json) => Work(
+    summary: WorkSummary.fromJson(json),
+    chapters: (json['chapters'] as List)
+        .map((c) => Chapter.fromJson(c as Map<String, dynamic>))
+        .toList(),
+  );
+}
+
+/// 章を書いてもらった結果（POST /api/chapters）
+class GeneratedChapter {
+  const GeneratedChapter({required this.workId, required this.chapter});
+
+  final String workId;
+  final Chapter chapter;
+
+  factory GeneratedChapter.fromJson(Map<String, dynamic> json) =>
+      GeneratedChapter(
+        workId: json['workId'] as String,
+        chapter: Chapter.fromJson(json['chapter'] as Map<String, dynamic>),
+      );
+}
+
+/// ランキング一覧の1行（packages/core/src/api の PublicWorkSummary）
+class PublicWorkSummary {
+  const PublicWorkSummary({
+    required this.id,
+    required this.title,
+    required this.authorId,
+    required this.authorName,
+    required this.chapterCount,
+    required this.publishedAt,
+    required this.readers,
+    required this.likes,
+  });
+
+  final String id;
+  final String title;
+
+  /// 作者の利用者ID（ブロックに使う）
+  final String authorId;
+  final String authorName;
+  final int chapterCount;
+  final DateTime publishedAt;
+
+  /// 読み始めた人数（作者本人は数えない）
+  final int readers;
+
+  /// 高評価の数
+  final int likes;
+
+  factory PublicWorkSummary.fromJson(Map<String, dynamic> json) =>
+      PublicWorkSummary(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        authorId: json['authorId'] as String,
+        authorName: json['authorName'] as String,
+        chapterCount: json['chapterCount'] as int,
+        publishedAt: _parseTime(json['publishedAt'] as String)!,
+        readers: json['readers'] as int,
+        likes: json['likes'] as int,
+      );
+}
+
+/// ほかの人の公開作品と全章（GET /api/public-works/:workId）。
+/// 展開リクエストは作者の個人的なメモなので含まれない
+class PublicWork {
+  const PublicWork({
+    required this.summary,
+    required this.isMine,
+    required this.likedByMe,
+    required this.chapters,
+  });
+
+  final PublicWorkSummary summary;
+
+  /// 自分の作品か（自分の作品には高評価を付けられない）
+  final bool isMine;
+  final bool likedByMe;
+  final List<Chapter> chapters;
+
+  factory PublicWork.fromJson(Map<String, dynamic> json) => PublicWork(
+    summary: PublicWorkSummary.fromJson(json),
+    isMine: json['isMine'] as bool,
+    likedByMe: json['likedByMe'] as bool,
+    chapters: (json['chapters'] as List)
+        .map((c) => Chapter.fromJson(c as Map<String, dynamic>))
+        .toList(),
+  );
+}
+
+/// 章を読み始めた・読み終えた・読み終えずに離れた（POST /api/public-works/:workId/reads の kind）
+enum ReadKind { start, complete, leave }
+
+/// 通報の理由（packages/core/src/api の reportReasons。名前をそのまま送る）
+enum ReportReason { sexual, violence, harassment, spam, rights, other }
+
+/// ブロックした人（GET /api/blocks）。メールアドレスは含まれない
+class BlockedUser {
+  const BlockedUser({
+    required this.userId,
+    required this.name,
+    required this.blockedAt,
+  });
+
+  final String userId;
+  final String name;
+  final DateTime blockedAt;
+
+  factory BlockedUser.fromJson(Map<String, dynamic> json) => BlockedUser(
+    userId: json['userId'] as String,
+    name: json['name'] as String,
+    blockedAt: _parseTime(json['blockedAt'] as String)!,
+  );
+}
+
+/// D1 の datetime('now')（"2026-10-28 01:00:00"、UTC）と ISO 形式のどちらも読む
+DateTime? _parseTime(String? value) {
+  if (value == null) return null;
+  final iso = value.contains('T') ? value : '${value.replaceFirst(' ', 'T')}Z';
+  return DateTime.parse(iso);
+}
+
 /// サーバーがエラーを返した。[code] は Better Auth のエラーコード（ログイン以外は null）
 class ApiException implements Exception {
   ApiException(this.status, this.message, {this.code});
@@ -187,4 +368,147 @@ class ApiClient {
 
   /// 選び直すときに、これまでの答えを消す。
   Future<void> clearChoices() => _request('DELETE', '/api/opening-choices');
+
+  // ---- 小説を書く ----
+
+  /// AIに章を書いてもらう。[workId] がなければ新しい作品の第1章になる。
+  /// 生成には数十秒かかることがある。
+  Future<GeneratedChapter> generateChapter({
+    String? workId,
+    String? plotRequest,
+  }) async {
+    final json = await _request(
+      'POST',
+      '/api/chapters',
+      body: {
+        'workId': ?workId,
+        if (plotRequest != null && plotRequest.trim().isNotEmpty)
+          'plotRequest': plotRequest.trim(),
+      },
+    ) as Map<String, dynamic>;
+    return GeneratedChapter.fromJson(json);
+  }
+
+  /// 本人の作品を、最後に章が増えた順に取得する。
+  Future<List<WorkSummary>> fetchOwnWorks() async {
+    final json = await _request('GET', '/api/works') as Map<String, dynamic>;
+    return (json['works'] as List)
+        .map((w) => WorkSummary.fromJson(w as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 本人の作品と全章を取得する。
+  Future<Work> fetchOwnWork(String workId) async {
+    final json =
+        await _request('GET', '/api/works/$workId') as Map<String, dynamic>;
+    return Work.fromJson(json['work'] as Map<String, dynamic>);
+  }
+
+  /// 題名を変える・公開／非公開を切り替える。
+  Future<WorkSummary> updateWork(
+    String workId, {
+    String? title,
+    bool? published,
+  }) async {
+    final json = await _request(
+      'PATCH',
+      '/api/works/$workId',
+      body: {'title': ?title, 'published': ?published},
+    ) as Map<String, dynamic>;
+    return WorkSummary.fromJson(json);
+  }
+
+  // ---- みんなの作品 ----
+
+  /// ほかの人の公開作品をランキング順に取得する。
+  Future<List<PublicWorkSummary>> fetchPublicWorks() async {
+    final json =
+        await _request('GET', '/api/public-works') as Map<String, dynamic>;
+    return (json['works'] as List)
+        .map((w) => PublicWorkSummary.fromJson(w as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 公開作品と全章を取得する（ログイン必須）。
+  Future<PublicWork> fetchPublicWork(String workId) async {
+    final json = await _request(
+      'GET',
+      '/api/public-works/$workId',
+    ) as Map<String, dynamic>;
+    return PublicWork.fromJson(json['work'] as Map<String, dynamic>);
+  }
+
+  /// 章を読み始めた・読み終えた・離れたことを記録する（ランキングと行動学習に使う）。
+  /// 離れたとき（[ReadKind.leave]）は、どこまで読んだかを [progress]（0〜1）で送る。
+  Future<void> recordRead(
+    String workId,
+    int position,
+    ReadKind kind, {
+    double? progress,
+  }) => _request(
+    'POST',
+    '/api/public-works/$workId/reads',
+    body: {'position': position, 'kind': kind.name, 'progress': ?progress},
+  );
+
+  /// 高評価を付ける・外す。付けたあとの高評価の数を返す。
+  Future<int> setLike(String workId, {required bool liked}) async {
+    final json = await _request(
+      'PUT',
+      '/api/public-works/$workId/like',
+      body: {'liked': liked},
+    ) as Map<String, dynamic>;
+    return json['likes'] as int;
+  }
+
+  // ---- 通報・ブロック・退会 ----
+
+  /// 作品を通報する。通報した作品は自分の一覧に出なくなる。
+  Future<void> reportWork(
+    String workId,
+    ReportReason reason, {
+    String? detail,
+  }) => _request(
+    'POST',
+    '/api/public-works/$workId/reports',
+    body: {
+      'reason': reason.name,
+      if (detail != null && detail.trim().isNotEmpty) 'detail': detail.trim(),
+    },
+  );
+
+  /// ブロックした人を新しい順に取得する。
+  Future<List<BlockedUser>> fetchBlocks() async {
+    final json = await _request('GET', '/api/blocks') as Map<String, dynamic>;
+    return (json['blocks'] as List)
+        .map((b) => BlockedUser.fromJson(b as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// [userId] をブロックする。お互いの作品が見えなくなる。
+  Future<void> block(String userId) => _request('PUT', '/api/blocks/$userId');
+
+  /// ブロックを解除する。
+  Future<void> unblock(String userId) =>
+      _request('DELETE', '/api/blocks/$userId');
+
+  /// 退会する。本人の作品も消える。パスワードが違えば [ApiException]（code: INVALID_PASSWORD）。
+  /// パスワードでログインできるアカウントか（Google だけで登録した人は false）
+  Future<bool> hasPassword() async {
+    final accounts = await _request('GET', '/api/auth/list-accounts') as List;
+    return accounts.any(
+      (a) => (a as Map<String, dynamic>)['providerId'] == 'credential',
+    );
+  }
+
+  /// 退会する。[password] がなければ、ログインし直した直後（ログインから1日以内）である必要がある。
+  /// 退会できたら端末のトークンを消す
+  Future<void> deleteAccount({String? password}) async {
+    await _request(
+      'POST',
+      '/api/auth/delete-user',
+      body: {'password': ?password},
+    );
+    await tokens.write(null);
+  }
 }

@@ -30,6 +30,9 @@ export function createAuth(env: Env, deps: AuthDeps = {}) {
       minPasswordLength: MIN_PASSWORD_LENGTH,
       password: { hash: hashPassword, verify: verifyPassword },
     },
+    // アプリ内の退会（POST /api/auth/delete-user）。アプリは必ずパスワードを送る。
+    // 作品・章・読んだ記録・高評価・ブロックは DB の on delete cascade で消え、通報は通報者を空にして残る
+    user: { deleteUser: { enabled: true } },
     // GOOGLE_CLIENT_IDS が空なら Google ログインは無効
     socialProviders:
       googleClientIds.length > 0

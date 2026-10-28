@@ -12,10 +12,11 @@ export type WorkStats = {
 
 /**
  * ランキングのスコア。読了と高評価を重く見て、古い作品ほど少しずつ下げる。
+ * まだ誰にも読まれていない作品も新しい順に並ぶよう、反応には 1 を足しておく。
  * 重みはMVPの仮置き。調整したら docs/product.md も更新する。
  */
 export function rankingScore(s: WorkStats): number {
-  const engagement = s.readers + 3 * s.completions + 5 * s.likes;
+  const engagement = 1 + s.readers + 3 * s.completions + 5 * s.likes;
   const decay = Math.pow(s.ageHours + 2, 1.5);
   return engagement / decay;
 }
@@ -25,4 +26,9 @@ export function rankWorks(stats: WorkStats[]): WorkStats[] {
   return [...stats].sort(
     (a, b) => rankingScore(b) - rankingScore(a) || b.readers - a.readers,
   );
+}
+
+/** 公開日時から今までの経過時間（時間）。未来の日時は 0 にする */
+export function ageHours(publishedAt: Date, now: Date): number {
+  return Math.max(0, (now.getTime() - publishedAt.getTime()) / 3_600_000);
 }

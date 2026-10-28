@@ -42,7 +42,8 @@ class FakeApi extends ApiClient {
   Future<SessionUser> signInWithGoogle(String idToken) async {
     googleIdToken = idToken;
     if (signInError != null) throw signInError!;
-    return session = taro;
+    freshSession = true;
+    return session = googleUser;
   }
 
   @override
@@ -50,6 +51,33 @@ class FakeApi extends ApiClient {
 
   @override
   Future<Map<int, bool>> fetchOwnChoices() async => choices;
+
+  /// パスワードでログインできるアカウントか
+  bool passwordAccount = true;
+
+  /// Google でログインし直したあと（ログイン状態が新しい）か
+  bool freshSession = false;
+
+  /// signInWithGoogle で返す利用者（別のアカウントを選んだ場合を試す）
+  SessionUser googleUser = taro;
+
+  @override
+  Future<bool> hasPassword() async => passwordAccount;
+
+  @override
+  Future<void> deleteAccount({String? password}) async {
+    if (password == null) {
+      if (!freshSession) {
+        throw ApiException(400, 'Session expired', code: 'SESSION_EXPIRED');
+      }
+    } else if (password != 'password123') {
+      throw ApiException(400, 'Invalid password', code: 'INVALID_PASSWORD');
+    }
+    deleted = true;
+    session = null;
+  }
+
+  bool deleted = false;
 }
 
 /// 端末の Google ログインの偽物。token が null なら途中でやめた扱い
@@ -156,5 +184,48 @@ void main() {
     await auth.signOut();
     expect(auth.user, isNull);
     expect(auth.onboarded, isNull);
+  });
+
+  test('退会はパスワードが違えば理由を返し、できたら未ログインに戻る', () async {
+    await auth.submit(AuthMode.signUp, 'taro@example.com', 'password123');
+    expect(await auth.deleteAccount('wrong'), 'パスワードが違います。');
+    expect(auth.user, isNotNull);
+
+    expect(await auth.deleteAccount('password123'), isNull);
+    expect(auth.user, isNull);
+    expect(auth.onboarded, isNull);
+  });
+
+  group('Google の人の退会', () {
+    setUp(() async {
+      await auth.signInWithGoogle();
+      api.passwordAccount = false;
+      api.freshSession = false;
+    });
+
+    test('Google でログインし直してから、パスワードなしで退会する', () async {
+      expect(await auth.deleteAccountWithGoogle(), isNull);
+      expect(api.freshSession, isTrue);
+      expect(auth.user, isNull);
+      expect(google.signedOut, isTrue);
+    });
+
+    test('Google の画面でやめたら何もしない', () async {
+      google.token = null;
+      expect(await auth.deleteAccountWithGoogle(), deleteCanceled);
+      expect(auth.user, isNotNull);
+    });
+
+    test('別の Google アカウントを選んだら退会せずログアウトする', () async {
+      api.googleUser = const SessionUser(
+        id: 'u2',
+        email: 'other@example.com',
+        name: '読者',
+      );
+      final error = await auth.deleteAccountWithGoogle();
+      expect(error, contains('別の Google アカウント'));
+      expect(api.deleted, isFalse);
+      expect(auth.user, isNull);
+    });
   });
 }

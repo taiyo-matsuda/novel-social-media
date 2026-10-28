@@ -9,6 +9,10 @@ export const SYSTEM_PROMPT = `あなたは日本語の小説家兼編集者で�
 2行目：空行
 3行目以降：本文`;
 
+/** 行動から分かった傾向があるときに添える、使い方の指示 */
+export const LEARNED_TRAITS_GUIDE =
+  "好んだ作品に近い雰囲気・題材・テンポは取り入れ、途中で読むのをやめた作品に近い書き方は避けてください。ほかの作品の題名や文章はまねしないでください。";
+
 function bullets(items: string[]): string {
   return items.length === 0
     ? "（なし）"
@@ -23,6 +27,10 @@ export function buildChapterPrompt(req: ChapterRequest): string {
     `## 読者が「読みたくない」と選んだ冒頭文\n${bullets(preference.dislikedOpenings)}`,
     `## 行動から分かった読者の傾向\n${bullets(preference.learnedTraits)}`,
   ];
+  if (preference.learnedTraits.length > 0) {
+    // 傾向は他人の作品の題名と書き出し。雰囲気だけ参考にさせ、文章をまねさせない
+    parts.push(LEARNED_TRAITS_GUIDE);
+  }
   if (previousChapters.length > 0) {
     parts.push(
       `## これまでの章\n${previousChapters
@@ -31,7 +39,12 @@ export function buildChapterPrompt(req: ChapterRequest): string {
     );
   }
   if (plotRequest) {
-    parts.push(`## 読者からの展開リクエスト\n${plotRequest}`);
+    // 第1章では「どんな話を読みたいか」、2章目以降では「次はこうしてほしい」として渡す
+    parts.push(
+      previousChapters.length === 0
+        ? `## 読者が読みたい話\n${plotRequest}`
+        : `## 読者からの展開リクエスト\n${plotRequest}`,
+    );
   }
   parts.push(
     previousChapters.length === 0
