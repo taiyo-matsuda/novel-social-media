@@ -67,7 +67,7 @@ describe("workIdSchema", () => {
 });
 
 describe("recordReadRequestSchema", () => {
-  it("章の番号と、読み始め・読了だけ受け付ける", () => {
+  it("章の番号と、読み始め・読了を受け付ける", () => {
     expect(
       recordReadRequestSchema.safeParse({ position: 1, kind: "start" }).success,
     ).toBe(true);
@@ -75,8 +75,21 @@ describe("recordReadRequestSchema", () => {
       recordReadRequestSchema.safeParse({ position: 0, kind: "start" }).success,
     ).toBe(false);
     expect(
-      recordReadRequestSchema.safeParse({ position: 1, kind: "leave" }).success,
+      recordReadRequestSchema.safeParse({ position: 1, kind: "skip" }).success,
     ).toBe(false);
+  });
+
+  it("離脱は 0〜1 の読了率が必要", () => {
+    const leave = (progress?: number) =>
+      recordReadRequestSchema.safeParse({
+        position: 1,
+        kind: "leave",
+        progress,
+      }).success;
+    expect(leave(0.4)).toBe(true);
+    expect(leave(0)).toBe(true);
+    expect(leave(undefined)).toBe(false);
+    expect(leave(1.2)).toBe(false);
   });
 });
 

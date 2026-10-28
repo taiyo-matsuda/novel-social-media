@@ -436,6 +436,50 @@ describe("みんなの作品", () => {
     );
   });
 
+  it("読み方が次の章を書くときの傾向になり、自分の作品の読み返しは使わない", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const liked = await publish(taro, "古書店の少女", 2);
+    const finished = await publish(taro, "灯台");
+    const dropped = await publish(taro, "迷宮", 2);
+
+    const read = (workId: string, body: object) =>
+      request(`/api/public-works/${workId}/reads`, json("POST", body, hanako));
+    await request(
+      `/api/public-works/${liked}/like`,
+      json("PUT", { liked: true }, hanako),
+    );
+    await read(finished, { position: 1, kind: "start" });
+    await read(finished, { position: 1, kind: "complete" });
+    await read(dropped, { position: 1, kind: "start" });
+    expect(
+      (await read(dropped, { position: 1, kind: "leave", progress: 0.6 }))
+        .status,
+    ).toBe(204);
+    // あとから手前で離れても、いちばん先まで読んだ位置を残す
+    await read(dropped, { position: 1, kind: "leave", progress: 0.2 });
+
+    await request("/api/chapters", json("POST", {}, hanako));
+    const traits = generator.requests.at(-1)!.preference.learnedTraits;
+    const opening = "これはテスト用の第1章です。";
+    expect(traits.slice(0, 2).sort()).toEqual(
+      [
+        `高評価した作品：「古書店の少女」（書き出し：${opening}）`,
+        `最後まで読んだ作品：「灯台」（書き出し：${opening}）`,
+      ].sort(),
+    );
+    expect(traits[2]).toBe(
+      `途中で読むのをやめた作品（第1章の6割ほどで離脱）：「迷宮」（書き出し：${opening}）`,
+    );
+
+    await request(
+      `/api/public-works/${liked}/reads`,
+      json("POST", { position: 1, kind: "complete" }, taro),
+    );
+    await request("/api/chapters", json("POST", {}, taro));
+    expect(generator.requests.at(-1)!.preference.learnedTraits).toEqual([]);
+  });
+
   it("高評価を付け外しでき、自分の作品には付けられない", async () => {
     const taro = await signUp("taro@example.com");
     const hanako = await signUp("hanako@example.com");

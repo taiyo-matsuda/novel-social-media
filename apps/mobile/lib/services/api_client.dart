@@ -168,8 +168,8 @@ class PublicWork {
   );
 }
 
-/// 章を読み始めた・読み終えた（POST /api/public-works/:workId/reads の kind）
-enum ReadKind { start, complete }
+/// 章を読み始めた・読み終えた・読み終えずに離れた（POST /api/public-works/:workId/reads の kind）
+enum ReadKind { start, complete, leave }
 
 /// D1 の datetime('now')（"2026-10-28 01:00:00"、UTC）と ISO 形式のどちらも読む
 DateTime? _parseTime(String? value) {
@@ -404,13 +404,18 @@ class ApiClient {
     return PublicWork.fromJson(json['work'] as Map<String, dynamic>);
   }
 
-  /// 章を読み始めた・読み終えたことを記録する（ランキングと行動学習に使う）。
-  Future<void> recordRead(String workId, int position, ReadKind kind) =>
-      _request(
-        'POST',
-        '/api/public-works/$workId/reads',
-        body: {'position': position, 'kind': kind.name},
-      );
+  /// 章を読み始めた・読み終えた・離れたことを記録する（ランキングと行動学習に使う）。
+  /// 離れたとき（[ReadKind.leave]）は、どこまで読んだかを [progress]（0〜1）で送る。
+  Future<void> recordRead(
+    String workId,
+    int position,
+    ReadKind kind, {
+    double? progress,
+  }) => _request(
+    'POST',
+    '/api/public-works/$workId/reads',
+    body: {'position': position, 'kind': kind.name, 'progress': ?progress},
+  );
 
   /// 高評価を付ける・外す。付けたあとの高評価の数を返す。
   Future<int> setLike(String workId, {required bool liked}) async {

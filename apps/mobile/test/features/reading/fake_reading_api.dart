@@ -7,6 +7,9 @@ import '../writing/fake_writing_api.dart';
 class FakeReadingApi extends FakeWritingApi {
   final works = <PublicWork>[];
   final reads = <(String, int, ReadKind)>[];
+
+  /// 離れたときに送られた読了率（作品ID・章・読了率）
+  final leaves = <(String, int, double)>[];
   final likes = <String, bool>{};
 
   /// 公開作品を1つ足す。章の本文は「第n章の本文（長さ [bodyLines] 行）」
@@ -56,8 +59,14 @@ class FakeReadingApi extends FakeWritingApi {
   }
 
   @override
-  Future<void> recordRead(String workId, int position, ReadKind kind) async {
+  Future<void> recordRead(
+    String workId,
+    int position,
+    ReadKind kind, {
+    double? progress,
+  }) async {
     reads.add((workId, position, kind));
+    if (progress != null) leaves.add((workId, position, progress));
   }
 
   @override

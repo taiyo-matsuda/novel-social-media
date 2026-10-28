@@ -271,6 +271,13 @@ void main() {
       expect(sent.last.url.path, '/api/public-works/w1/reads');
       expect(jsonDecode(sent.last.body), {'position': 2, 'kind': 'complete'});
 
+      await api.recordRead('w1', 1, ReadKind.leave, progress: 0.4);
+      expect(jsonDecode(sent.last.body), {
+        'position': 1,
+        'kind': 'leave',
+        'progress': 0.4,
+      });
+
       expect(await api.setLike('w1', liked: true), 2);
       expect(sent.last.method, 'PUT');
       expect(jsonDecode(sent.last.body), {'liked': true});

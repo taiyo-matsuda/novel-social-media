@@ -17,10 +17,24 @@ const chapterEndMargin = 48.0;
 bool reachedChapterEnd(ScrollMetrics metrics) =>
     metrics.pixels >= metrics.maxScrollExtent - chapterEndMargin;
 
+/// 章のどこまで画面に出たか（0〜1）。画面に収まる短い章は 1
+double readProgress(ScrollMetrics metrics) {
+  final total = metrics.maxScrollExtent + metrics.viewportDimension;
+  if (total <= 0) return 1;
+  return ((metrics.pixels + metrics.viewportDimension) / total).clamp(0.0, 1.0);
+}
+
 /// 読んだ記録を同じ画面で二度送らないための控え
 class ReadTracker {
   final _sent = <(int, ReadKind)>{};
 
-  /// まだ送っていなければ控えて true を返す
-  bool mark(int position, ReadKind kind) => _sent.add((position, kind));
+  /// まだ送っていなければ控えて true を返す。離脱は読み進めた位置が変わるので何度でも通す
+  bool mark(int position, ReadKind kind) =>
+      kind == ReadKind.leave || _sent.add((position, kind));
+
+  /// この章の「読み始めた」を送ったか
+  bool started(int position) => _sent.contains((position, ReadKind.start));
+
+  /// この章の「読み終えた」を送ったか
+  bool completed(int position) => _sent.contains((position, ReadKind.complete));
 }

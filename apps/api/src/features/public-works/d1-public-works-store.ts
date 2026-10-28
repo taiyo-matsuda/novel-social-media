@@ -102,7 +102,8 @@ export function d1PublicWorksStore(db: D1Database) {
     },
 
     /**
-     * 章を読み始めた・読み終えたことを記録する。同じ人の同じ章・同じ種類は一度だけ残す。
+     * 章を読み始めた・読み終えた・読み終えずに離れたことを記録する。同じ人の同じ章・同じ種類は一度だけ残す。
+     * 離脱は何度でも送られてくるので、いちばん先まで読んだ読了率を残す。
      * 公開作品のその章がなければ false
      */
     async recordRead(
@@ -118,15 +119,36 @@ export function d1PublicWorksStore(db: D1Database) {
         .bind(workId, read.position)
         .first<{ id: string }>();
       if (!chapter) return false;
-      await db
+      const progress = read.kind === "leave" ? read.progress : null;
+      const insert = db
         .prepare(
-          `insert into "reading_events" ("user_id", "chapter_id", "kind")
-           select ?, ?, ? where not exists (
+          `insert into "reading_events" ("user_id", "chapter_id", "kind", "progress")
+           select ?, ?, ?, ? where not exists (
              select 1 from "reading_events"
              where "user_id" = ? and "chapter_id" = ? and "kind" = ?)`,
         )
-        .bind(userId, chapter.id, read.kind, userId, chapter.id, read.kind)
-        .run();
+        .bind(
+          userId,
+          chapter.id,
+          read.kind,
+          progress,
+          userId,
+          chapter.id,
+          read.kind,
+        );
+      if (read.kind !== "leave") {
+        await insert.run();
+        return true;
+      }
+      await db.batch([
+        db
+          .prepare(
+            `update "reading_events" set "progress" = max("progress", ?)
+             where "user_id" = ? and "chapter_id" = ? and "kind" = 'leave'`,
+          )
+          .bind(read.progress, userId, chapter.id),
+        insert,
+      ]);
       return true;
     },
 

@@ -5,7 +5,8 @@ import '../../widgets/app_button.dart';
 import 'reading.dart';
 
 /// ほかの人の公開作品を1章ずつ読む画面。高評価もここで付ける。
-/// 章を開いたら「読み始めた」、終わりまで送ったら「読み終えた」をサーバーに記録する
+/// 章を開いたら「読み始めた」、終わりまで送ったら「読み終えた」、
+/// 読み終えずに別の章へ移ったり画面を閉じたりしたら「離れた」とその位置をサーバーに記録する（行動学習に使う）
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key, required this.api, required this.workId});
 
@@ -25,6 +26,9 @@ class _ReadingScreenState extends State<ReadingScreen> {
 
   /// いま読んでいる章（0 始まり）
   int _index = 0;
+
+  /// いまの章をどこまで読んだか（0〜1）
+  double _furthest = 0;
   bool _liked = false;
   int _likes = 0;
   bool _liking = false;
@@ -37,6 +41,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
 
   @override
   void dispose() {
+    _recordLeave();
     _scroll.dispose();
     super.dispose();
   }
@@ -63,29 +68,45 @@ class _ReadingScreenState extends State<ReadingScreen> {
   }
 
   /// 読んだ記録を送る。自分の作品の読み返しは送らない。失敗しても読むのは邪魔しない
-  void _record(int position, ReadKind kind) {
+  void _record(int position, ReadKind kind, {double? progress}) {
     final work = _work;
     if (work == null || work.isMine || !_tracker.mark(position, kind)) return;
-    widget.api.recordRead(widget.workId, position, kind).catchError((_) {});
+    widget.api
+        .recordRead(widget.workId, position, kind, progress: progress)
+        .catchError((_) {});
+  }
+
+  /// いまの章を読み終えずに離れるなら、どこまで読んだかを送る
+  void _recordLeave() {
+    final work = _work;
+    if (work == null || work.chapters.isEmpty) return;
+    final position = work.chapters[_index].position;
+    if (!_tracker.started(position) || _tracker.completed(position)) return;
+    _record(position, ReadKind.leave, progress: _furthest);
   }
 
   /// 章を表示したら「読み始めた」を送り、画面に収まる短い章ならそのまま「読み終えた」も送る
   void _onChapterShown() {
     final work = _work;
     if (work == null || work.chapters.isEmpty) return;
+    _furthest = 0;
     _record(work.chapters[_index].position, ReadKind.start);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _scroll.hasClients) _checkEnd(_scroll.position);
+      if (mounted && _scroll.hasClients) _onScroll(_scroll.position);
     });
   }
 
-  void _checkEnd(ScrollMetrics metrics) {
+  void _onScroll(ScrollMetrics metrics) {
     final work = _work;
-    if (work == null || !reachedChapterEnd(metrics)) return;
+    if (work == null) return;
+    final progress = readProgress(metrics);
+    if (progress > _furthest) _furthest = progress;
+    if (!reachedChapterEnd(metrics)) return;
     _record(work.chapters[_index].position, ReadKind.complete);
   }
 
   void _goTo(int index) {
+    _recordLeave();
     setState(() => _index = index);
     if (_scroll.hasClients) _scroll.jumpTo(0);
     _onChapterShown();
@@ -159,7 +180,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
     final isLast = _index == work.chapters.length - 1;
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
-        _checkEnd(n.metrics);
+        _onScroll(n.metrics);
         return false;
       },
       child: ListView(

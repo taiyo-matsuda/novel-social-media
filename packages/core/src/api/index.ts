@@ -120,11 +120,21 @@ export type GetPublicWorkResponse = {
   };
 };
 
-/** POST /api/public-works/:workId/reads：章を読み始めた・読み終えた */
-export const recordReadRequestSchema = z.object({
-  position: z.number().int().positive(),
-  kind: z.enum(["start", "complete"]),
-});
+/**
+ * POST /api/public-works/:workId/reads：章を読み始めた・読み終えた・読み終えずに離れた。
+ * 離れたとき（leave）は、どこまで読んだかを読了率（0〜1）で送る
+ */
+export const recordReadRequestSchema = z.discriminatedUnion("kind", [
+  z.object({
+    position: z.number().int().positive(),
+    kind: z.enum(["start", "complete"]),
+  }),
+  z.object({
+    position: z.number().int().positive(),
+    kind: z.literal("leave"),
+    progress: z.number().min(0).max(1),
+  }),
+]);
 export type RecordReadRequest = z.infer<typeof recordReadRequestSchema>;
 
 /** PUT /api/public-works/:workId/like：高評価を付ける・外す */
