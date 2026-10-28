@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { rankingScore, rankWorks, type WorkStats } from "./score";
+import { ageHours, rankingScore, rankWorks, type WorkStats } from "./score";
 
 const base: WorkStats = {
   workId: "a",
@@ -35,5 +35,22 @@ describe("rankWorks", () => {
     ];
     expect(rankWorks(input).map((w) => w.workId)).toEqual(["new", "old"]);
     expect(input[0].workId).toBe("old");
+  });
+
+  it("まだ誰も読んでいない作品どうしは新しい順になる", () => {
+    const zero = { ...base, readers: 0 };
+    const input = [
+      { ...zero, workId: "old", ageHours: 30 },
+      { ...zero, workId: "new", ageHours: 1 },
+    ];
+    expect(rankWorks(input).map((w) => w.workId)).toEqual(["new", "old"]);
+  });
+});
+
+describe("ageHours", () => {
+  it("公開からの経過時間を返し、未来の日時は 0 にする", () => {
+    const now = new Date("2026-10-28T12:00:00Z");
+    expect(ageHours(new Date("2026-10-28T09:00:00Z"), now)).toBe(3);
+    expect(ageHours(new Date("2026-10-28T13:00:00Z"), now)).toBe(0);
   });
 });

@@ -22,6 +22,9 @@ export function createAuth(env: Env) {
       minPasswordLength: MIN_PASSWORD_LENGTH,
       password: { hash: hashPassword, verify: verifyPassword },
     },
+    // アプリ内の退会（POST /api/auth/delete-user）。アプリは必ずパスワードを送る。
+    // 作品・章・読んだ記録・高評価・ブロックは DB の on delete cascade で消え、通報は通報者を空にして残る
+    user: { deleteUser: { enabled: true } },
     // スマホアプリは Origin を付けないので、ブラウザで試すときの開発サーバーだけ
     trustedOrigins: webOrigins(env),
     plugins: [bearer()],

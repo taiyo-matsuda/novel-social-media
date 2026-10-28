@@ -218,4 +218,136 @@ void main() {
       expect(work.published, isFalse);
     });
   });
+
+  group('みんなの作品', () {
+    const summary = {
+      'id': 'w1',
+      'title': '古書店の少女',
+      'authorId': 'u2',
+      'authorName': '太郎',
+      'chapterCount': 2,
+      'publishedAt': '2026-10-28 01:00:00',
+      'readers': 3,
+      'likes': 1,
+    };
+
+    test('ランキング一覧を読み込む', () async {
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'works': [summary],
+        }),
+      );
+      final works = await api.fetchPublicWorks();
+      expect(sent.single.url.path, '/api/public-works');
+      expect(works.single.authorName, '太郎');
+      expect(works.single.publishedAt, DateTime.utc(2026, 10, 28, 1));
+    });
+
+    test('作品と全章を読み、展開リクエストは持たない', () async {
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'work': {
+            ...summary,
+            'isMine': false,
+            'likedByMe': true,
+            'chapters': [
+              {'position': 1, 'title': '古書店', 'body': '本文'},
+            ],
+          },
+        }),
+      );
+      final work = await api.fetchPublicWork('w1');
+      expect(sent.single.url.path, '/api/public-works/w1');
+      expect(work.likedByMe, isTrue);
+      expect(work.chapters.single.plotRequest, isNull);
+    });
+
+    test('読んだ記録と高評価を送る', () async {
+      final api = clientWith(
+        (req) async => req.url.path.endsWith('/like')
+            ? jsonResponse({'liked': true, 'likes': 2})
+            : jsonResponse(null, status: 204),
+      );
+      await api.recordRead('w1', 2, ReadKind.complete);
+      expect(sent.last.url.path, '/api/public-works/w1/reads');
+      expect(jsonDecode(sent.last.body), {'position': 2, 'kind': 'complete'});
+
+      await api.recordRead('w1', 1, ReadKind.leave, progress: 0.4);
+      expect(jsonDecode(sent.last.body), {
+        'position': 1,
+        'kind': 'leave',
+        'progress': 0.4,
+      });
+
+      expect(await api.setLike('w1', liked: true), 2);
+      expect(sent.last.method, 'PUT');
+      expect(jsonDecode(sent.last.body), {'liked': true});
+    });
+  });
+
+  group('通報・ブロック・退会', () {
+    test('通報は理由の名前と、空でない補足だけを送る', () async {
+      final api = clientWith((_) async => jsonResponse(null, status: 204));
+      await api.reportWork('w1', ReportReason.spam, detail: '  ');
+      expect(sent.last.url.path, '/api/public-works/w1/reports');
+      expect(jsonDecode(sent.last.body), {'reason': 'spam'});
+
+      await api.reportWork('w1', ReportReason.other, detail: ' 宣伝です ');
+      expect(jsonDecode(sent.last.body), {'reason': 'other', 'detail': '宣伝です'});
+    });
+
+    test('ブロックした人を読み、ブロックは PUT、解除は DELETE で送る', () async {
+      final api = clientWith(
+        (req) async => req.method == 'GET'
+            ? jsonResponse({
+                'blocks': [
+                  {
+                    'userId': 'u2',
+                    'name': '太郎',
+                    'blockedAt': '2026-10-28 01:00:00',
+                  },
+                ],
+              })
+            : jsonResponse(null, status: 204),
+      );
+      final blocks = await api.fetchBlocks();
+      expect(blocks.single.name, '太郎');
+      expect(blocks.single.blockedAt, DateTime.utc(2026, 10, 28, 1));
+
+      await api.block('u2');
+      expect((sent.last.method, sent.last.url.path), ('PUT', '/api/blocks/u2'));
+      await api.unblock('u2');
+      expect(
+        (sent.last.method, sent.last.url.path),
+        ('DELETE', '/api/blocks/u2'),
+      );
+    });
+
+    test('退会できたら端末のトークンを消し、パスワード違いはエラーコードを渡す', () async {
+      tokens.token = 'signed.token';
+      var fail = true;
+      final api = clientWith(
+        (_) async => fail
+            ? jsonResponse({
+                'code': 'INVALID_PASSWORD',
+                'message': 'Invalid password',
+              }, status: 400)
+            : jsonResponse({'success': true, 'message': 'User deleted'}),
+      );
+      await expectLater(
+        api.deleteAccount('wrong'),
+        throwsA(
+          isA<ApiException>().having((e) => e.code, 'code', 'INVALID_PASSWORD'),
+        ),
+      );
+      expect(tokens.token, 'signed.token');
+
+      fail = false;
+      await api.deleteAccount('password123');
+      expect(sent.last.url.path, '/api/auth/delete-user');
+      expect(sent.last.headers['Authorization'], 'Bearer signed.token');
+      expect(jsonDecode(sent.last.body), {'password': 'password123'});
+      expect(tokens.token, isNull);
+    });
+  });
 }

@@ -1,25 +1,30 @@
+import { inferLearnedTraits } from "@novel/core/learning";
+
+import { loadReadingHistories } from "../learning/d1-reading-histories";
 import type { ChapterStore } from "./generate-next-chapter";
 
 /** ChapterStore の D1 実装。D1 には RLS がないので、本人の作品かどうかをここで必ず確かめる */
 export function d1ChapterStore(db: D1Database): ChapterStore {
   return {
     async loadPreference(userId) {
-      const { results } = await db
-        .prepare(
-          `select o."text", c."wants_to_read"
-           from "opening_choices" c join "openings" o on o."id" = c."opening_id"
-           where c."user_id" = ?
-           order by o."sort_order", o."id"`,
-        )
-        .bind(userId)
-        .all<{ text: string; wants_to_read: number }>();
+      const [{ results }, histories] = await Promise.all([
+        db
+          .prepare(
+            `select o."text", c."wants_to_read"
+             from "opening_choices" c join "openings" o on o."id" = c."opening_id"
+             where c."user_id" = ?
+             order by o."sort_order", o."id"`,
+          )
+          .bind(userId)
+          .all<{ text: string; wants_to_read: number }>(),
+        loadReadingHistories(db, userId),
+      ]);
       const texts = (wants: number) =>
         results.filter((r) => r.wants_to_read === wants).map((r) => r.text);
-      // TODO: reading_events から傾向を推定して learnedTraits に入れる
       return {
         likedOpenings: texts(1),
         dislikedOpenings: texts(0),
-        learnedTraits: [],
+        learnedTraits: inferLearnedTraits(histories),
       };
     },
 
