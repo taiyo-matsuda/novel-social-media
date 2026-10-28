@@ -3,11 +3,14 @@ import {
   generateChapterRequestSchema,
   openingIdSchema,
   recordReadRequestSchema,
+  reportWorkRequestSchema,
   saveOpeningChoiceRequestSchema,
   setLikeRequestSchema,
   updateWorkRequestSchema,
+  userIdSchema,
   workIdSchema,
   type GetOwnWorkResponse,
+  type ListBlocksResponse,
   type GetPublicWorkResponse,
   type ListOpeningChoicesResponse,
   type ListOpeningsResponse,
@@ -28,12 +31,14 @@ import {
 import { d1OpeningsStore } from "./features/openings/d1-openings-store";
 import { d1PublicWorksStore } from "./features/public-works/d1-public-works-store";
 import { rankPublicWorks } from "./features/public-works/rank-public-works";
+import { d1SafetyStore } from "./features/safety/d1-safety-store";
 import { d1WorksStore } from "./features/works/d1-works-store";
 import { createNovelGenerator } from "./lib/ai";
 import { AiRefusalError } from "./lib/ai/claude";
 import { createAuth } from "./lib/auth";
 
 type AppEnv = { Bindings: Env; Variables: { userId: string } };
+type OptionalUserEnv = { Bindings: Env; Variables: { userId: string | null } };
 
 /**
  * API の入口。ここには認証・入力検証・エラー変換だけを書き、処理は features/ に置く。
@@ -68,6 +73,15 @@ export function createApp(
     });
     if (!session) return c.json({ error: "ログインが必要です" }, 401);
     c.set("userId", session.user.id);
+    await next();
+  });
+
+  // ログインしていなくても使える API で、ログインしていれば本人のIDを使う
+  const optionalUser = createMiddleware<OptionalUserEnv>(async (c, next) => {
+    const session = await createAuth(c.env).api.getSession({
+      headers: c.req.raw.headers,
+    });
+    c.set("userId", session?.user.id ?? null);
     await next();
   });
 
@@ -168,9 +182,13 @@ export function createApp(
   // ---- みんなの作品 ----
   // 一覧（題名・作者名・数字）はログインなしでも見られる。本文はログイン必須
 
-  app.get("/api/public-works", async (c) => {
-    // 新しい 200 件の中からランキング上位 50 件を出す（作品が増えたら集計を定期実行に変える）
-    const recent = await d1PublicWorksStore(c.env.DB).listRecent(200);
+  app.get("/api/public-works", optionalUser, async (c) => {
+    // 新しい 200 件の中からランキング上位 50 件を出す（作品が増えたら集計を定期実行に変える）。
+    // ログインしていれば、ブロックした・された相手の作品と通報した作品を除く
+    const recent = await d1PublicWorksStore(c.env.DB).listRecent(
+      c.get("userId"),
+      200,
+    );
     const works = rankPublicWorks(recent, new Date(), 50);
     return c.json<ListPublicWorksResponse>({ works });
   });
@@ -221,6 +239,58 @@ export function createApp(
       return c.json({ error: "自分の作品には高評価を付けられません" }, 403);
     }
     return c.json<SetLikeResponse>({ liked: body.data.liked, ...result });
+  });
+
+  // ---- 通報・ブロック ----
+  // 退会は Better Auth の POST /api/auth/delete-user（src/lib/auth.ts）
+
+  app.post("/api/public-works/:workId/reports", requireUser, async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const body = reportWorkRequestSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: "リクエストが不正です" }, 400);
+    const result = await d1SafetyStore(c.env.DB).reportWork(
+      c.get("userId"),
+      workId.data,
+      body.data,
+    );
+    if (result === "not_found") {
+      return c.json({ error: "作品が見つかりません" }, 404);
+    }
+    if (result === "own_work") {
+      return c.json({ error: "自分の作品は通報できません" }, 403);
+    }
+    return c.body(null, 204);
+  });
+
+  app.get("/api/blocks", requireUser, async (c) => {
+    const blocks = await d1SafetyStore(c.env.DB).listBlocks(c.get("userId"));
+    return c.json<ListBlocksResponse>({ blocks });
+  });
+
+  app.put("/api/blocks/:userId", requireUser, async (c) => {
+    const target = userIdSchema.safeParse(c.req.param("userId"));
+    if (!target.success)
+      return c.json({ error: "利用者が見つかりません" }, 404);
+    if (target.data === c.get("userId")) {
+      return c.json({ error: "自分はブロックできません" }, 400);
+    }
+    const blocked = await d1SafetyStore(c.env.DB).block(
+      c.get("userId"),
+      target.data,
+    );
+    if (!blocked) return c.json({ error: "利用者が見つかりません" }, 404);
+    return c.body(null, 204);
+  });
+
+  app.delete("/api/blocks/:userId", requireUser, async (c) => {
+    const target = userIdSchema.safeParse(c.req.param("userId"));
+    if (!target.success)
+      return c.json({ error: "利用者が見つかりません" }, 404);
+    await d1SafetyStore(c.env.DB).unblock(c.get("userId"), target.data);
+    return c.body(null, 204);
   });
 
   return app;

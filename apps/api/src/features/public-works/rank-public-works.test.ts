@@ -16,6 +16,7 @@ function work(
   return {
     id,
     title: `題 ${id}`,
+    authorId: "author",
     authorName: "作者",
     chapterCount: 1,
     publishedAt,

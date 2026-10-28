@@ -90,6 +90,8 @@ export type UpdateWorkRequest = z.infer<typeof updateWorkRequestSchema>;
 export type PublicWorkSummary = {
   id: string;
   title: string;
+  /** 作者の利用者ID（ブロックに使う） */
+  authorId: string;
   authorName: string;
   chapterCount: number;
   publishedAt: string;
@@ -120,14 +122,53 @@ export type GetPublicWorkResponse = {
   };
 };
 
-/** POST /api/public-works/:workId/reads：章を読み始めた・読み終えた */
-export const recordReadRequestSchema = z.object({
-  position: z.number().int().positive(),
-  kind: z.enum(["start", "complete"]),
-});
+/**
+ * POST /api/public-works/:workId/reads：章を読み始めた・読み終えた・読み終えずに離れた。
+ * 離れたとき（leave）は、どこまで読んだかを読了率（0〜1）で送る
+ */
+export const recordReadRequestSchema = z.discriminatedUnion("kind", [
+  z.object({
+    position: z.number().int().positive(),
+    kind: z.enum(["start", "complete"]),
+  }),
+  z.object({
+    position: z.number().int().positive(),
+    kind: z.literal("leave"),
+    progress: z.number().min(0).max(1),
+  }),
+]);
 export type RecordReadRequest = z.infer<typeof recordReadRequestSchema>;
 
 /** PUT /api/public-works/:workId/like：高評価を付ける・外す */
 export const setLikeRequestSchema = z.object({ liked: z.boolean() });
 export type SetLikeRequest = z.infer<typeof setLikeRequestSchema>;
 export type SetLikeResponse = { liked: boolean; likes: number };
+
+// ---- 通報・ブロック ----
+
+/** 通報の理由 */
+export const reportReasons = [
+  "sexual",
+  "violence",
+  "harassment",
+  "spam",
+  "rights",
+  "other",
+] as const;
+export type ReportReason = (typeof reportReasons)[number];
+
+/** POST /api/public-works/:workId/reports：作品を通報する。通報した人にはその作品が見えなくなる */
+export const reportWorkRequestSchema = z.object({
+  reason: z.enum(reportReasons),
+  detail: z.string().trim().max(500).optional(),
+});
+export type ReportWorkRequest = z.infer<typeof reportWorkRequestSchema>;
+
+/** URL の :userId を検証する（Better Auth の利用者ID） */
+export const userIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+
+/** ブロックした人。名前だけ（メールアドレスは出さない） */
+export type BlockedUser = { userId: string; name: string; blockedAt: string };
+
+/** GET /api/blocks：ブロックした人を新しい順に */
+export type ListBlocksResponse = { blocks: BlockedUser[] };

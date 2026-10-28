@@ -110,6 +110,7 @@ class PublicWorkSummary {
   const PublicWorkSummary({
     required this.id,
     required this.title,
+    required this.authorId,
     required this.authorName,
     required this.chapterCount,
     required this.publishedAt,
@@ -119,6 +120,9 @@ class PublicWorkSummary {
 
   final String id;
   final String title;
+
+  /// 作者の利用者ID（ブロックに使う）
+  final String authorId;
   final String authorName;
   final int chapterCount;
   final DateTime publishedAt;
@@ -133,6 +137,7 @@ class PublicWorkSummary {
       PublicWorkSummary(
         id: json['id'] as String,
         title: json['title'] as String,
+        authorId: json['authorId'] as String,
         authorName: json['authorName'] as String,
         chapterCount: json['chapterCount'] as int,
         publishedAt: _parseTime(json['publishedAt'] as String)!,
@@ -168,8 +173,30 @@ class PublicWork {
   );
 }
 
-/// 章を読み始めた・読み終えた（POST /api/public-works/:workId/reads の kind）
-enum ReadKind { start, complete }
+/// 章を読み始めた・読み終えた・読み終えずに離れた（POST /api/public-works/:workId/reads の kind）
+enum ReadKind { start, complete, leave }
+
+/// 通報の理由（packages/core/src/api の reportReasons。名前をそのまま送る）
+enum ReportReason { sexual, violence, harassment, spam, rights, other }
+
+/// ブロックした人（GET /api/blocks）。メールアドレスは含まれない
+class BlockedUser {
+  const BlockedUser({
+    required this.userId,
+    required this.name,
+    required this.blockedAt,
+  });
+
+  final String userId;
+  final String name;
+  final DateTime blockedAt;
+
+  factory BlockedUser.fromJson(Map<String, dynamic> json) => BlockedUser(
+    userId: json['userId'] as String,
+    name: json['name'] as String,
+    blockedAt: _parseTime(json['blockedAt'] as String)!,
+  );
+}
 
 /// D1 の datetime('now')（"2026-10-28 01:00:00"、UTC）と ISO 形式のどちらも読む
 DateTime? _parseTime(String? value) {
@@ -404,13 +431,18 @@ class ApiClient {
     return PublicWork.fromJson(json['work'] as Map<String, dynamic>);
   }
 
-  /// 章を読み始めた・読み終えたことを記録する（ランキングと行動学習に使う）。
-  Future<void> recordRead(String workId, int position, ReadKind kind) =>
-      _request(
-        'POST',
-        '/api/public-works/$workId/reads',
-        body: {'position': position, 'kind': kind.name},
-      );
+  /// 章を読み始めた・読み終えた・離れたことを記録する（ランキングと行動学習に使う）。
+  /// 離れたとき（[ReadKind.leave]）は、どこまで読んだかを [progress]（0〜1）で送る。
+  Future<void> recordRead(
+    String workId,
+    int position,
+    ReadKind kind, {
+    double? progress,
+  }) => _request(
+    'POST',
+    '/api/public-works/$workId/reads',
+    body: {'position': position, 'kind': kind.name, 'progress': ?progress},
+  );
 
   /// 高評価を付ける・外す。付けたあとの高評価の数を返す。
   Future<int> setLike(String workId, {required bool liked}) async {
@@ -420,5 +452,47 @@ class ApiClient {
       body: {'liked': liked},
     ) as Map<String, dynamic>;
     return json['likes'] as int;
+  }
+
+  // ---- 通報・ブロック・退会 ----
+
+  /// 作品を通報する。通報した作品は自分の一覧に出なくなる。
+  Future<void> reportWork(
+    String workId,
+    ReportReason reason, {
+    String? detail,
+  }) => _request(
+    'POST',
+    '/api/public-works/$workId/reports',
+    body: {
+      'reason': reason.name,
+      if (detail != null && detail.trim().isNotEmpty) 'detail': detail.trim(),
+    },
+  );
+
+  /// ブロックした人を新しい順に取得する。
+  Future<List<BlockedUser>> fetchBlocks() async {
+    final json = await _request('GET', '/api/blocks') as Map<String, dynamic>;
+    return (json['blocks'] as List)
+        .map((b) => BlockedUser.fromJson(b as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// [userId] をブロックする。お互いの作品が見えなくなる。
+  Future<void> block(String userId) => _request('PUT', '/api/blocks/$userId');
+
+  /// ブロックを解除する。
+  Future<void> unblock(String userId) =>
+      _request('DELETE', '/api/blocks/$userId');
+
+  /// 退会する。本人の作品も消える。パスワードが違えば [ApiException]（code: INVALID_PASSWORD）。
+  /// 退会できたら端末のトークンを消す
+  Future<void> deleteAccount(String password) async {
+    await _request(
+      'POST',
+      '/api/auth/delete-user',
+      body: {'password': password},
+    );
+    await tokens.write(null);
   }
 }

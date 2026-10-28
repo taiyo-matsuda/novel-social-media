@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_client.dart';
 import '../../widgets/app_button.dart';
+import '../safety/report_dialog.dart';
 import 'reading.dart';
 
-/// ほかの人の公開作品を1章ずつ読む画面。高評価もここで付ける。
-/// 章を開いたら「読み始めた」、終わりまで送ったら「読み終えた」をサーバーに記録する
+/// 右上のメニューの項目
+enum _MenuAction { report, block }
+
+/// ほかの人の公開作品を1章ずつ読む画面。高評価・通報・作者のブロックもここで行う。
+/// 章を開いたら「読み始めた」、終わりまで送ったら「読み終えた」、
+/// 読み終えずに別の章へ移ったり画面を閉じたりしたら「離れた」とその位置をサーバーに記録する（行動学習に使う）
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key, required this.api, required this.workId});
 
@@ -25,6 +30,9 @@ class _ReadingScreenState extends State<ReadingScreen> {
 
   /// いま読んでいる章（0 始まり）
   int _index = 0;
+
+  /// いまの章をどこまで読んだか（0〜1）
+  double _furthest = 0;
   bool _liked = false;
   int _likes = 0;
   bool _liking = false;
@@ -37,6 +45,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
 
   @override
   void dispose() {
+    _recordLeave();
     _scroll.dispose();
     super.dispose();
   }
@@ -63,29 +72,45 @@ class _ReadingScreenState extends State<ReadingScreen> {
   }
 
   /// 読んだ記録を送る。自分の作品の読み返しは送らない。失敗しても読むのは邪魔しない
-  void _record(int position, ReadKind kind) {
+  void _record(int position, ReadKind kind, {double? progress}) {
     final work = _work;
     if (work == null || work.isMine || !_tracker.mark(position, kind)) return;
-    widget.api.recordRead(widget.workId, position, kind).catchError((_) {});
+    widget.api
+        .recordRead(widget.workId, position, kind, progress: progress)
+        .catchError((_) {});
+  }
+
+  /// いまの章を読み終えずに離れるなら、どこまで読んだかを送る
+  void _recordLeave() {
+    final work = _work;
+    if (work == null || work.chapters.isEmpty) return;
+    final position = work.chapters[_index].position;
+    if (!_tracker.started(position) || _tracker.completed(position)) return;
+    _record(position, ReadKind.leave, progress: _furthest);
   }
 
   /// 章を表示したら「読み始めた」を送り、画面に収まる短い章ならそのまま「読み終えた」も送る
   void _onChapterShown() {
     final work = _work;
     if (work == null || work.chapters.isEmpty) return;
+    _furthest = 0;
     _record(work.chapters[_index].position, ReadKind.start);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _scroll.hasClients) _checkEnd(_scroll.position);
+      if (mounted && _scroll.hasClients) _onScroll(_scroll.position);
     });
   }
 
-  void _checkEnd(ScrollMetrics metrics) {
+  void _onScroll(ScrollMetrics metrics) {
     final work = _work;
-    if (work == null || !reachedChapterEnd(metrics)) return;
+    if (work == null) return;
+    final progress = readProgress(metrics);
+    if (progress > _furthest) _furthest = progress;
+    if (!reachedChapterEnd(metrics)) return;
     _record(work.chapters[_index].position, ReadKind.complete);
   }
 
   void _goTo(int index) {
+    _recordLeave();
     setState(() => _index = index);
     if (_scroll.hasClients) _scroll.jumpTo(0);
     _onChapterShown();
@@ -112,6 +137,57 @@ class _ReadingScreenState extends State<ReadingScreen> {
     }
   }
 
+  /// 通報・ブロックのあとは作品が見えなくなるので、知らせて一覧へ戻る
+  void _leaveWithMessage(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _report() async {
+    final reported = await showReportDialog(
+      context,
+      api: widget.api,
+      workId: widget.workId,
+    );
+    if (reported && mounted) {
+      _leaveWithMessage('通報しました。運営が内容を確認します。');
+    }
+  }
+
+  Future<void> _block(PublicWork work) async {
+    final name = work.summary.authorName;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$nameさんをブロックしますか？'),
+        content: const Text(
+          'お互いの作品が表示されなくなります。ブロックしたことは相手に通知されません。「書く」タブの「ブロックした人」からいつでも解除できます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('やめる'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('ブロックする'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.api.block(work.summary.authorId);
+      if (mounted) _leaveWithMessage('$nameさんをブロックしました。');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('ブロックできませんでした。')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final work = _work;
@@ -124,6 +200,24 @@ class _ReadingScreenState extends State<ReadingScreen> {
               tooltip: _liked ? '高評価を外す' : '高評価を付ける',
               icon: Icon(_liked ? Icons.favorite : Icons.favorite_border),
               onPressed: _liking ? null : _toggleLike,
+            ),
+          if (work != null && !work.isMine)
+            PopupMenuButton<_MenuAction>(
+              tooltip: 'その他',
+              onSelected: (action) => switch (action) {
+                _MenuAction.report => _report(),
+                _MenuAction.block => _block(work),
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: _MenuAction.report,
+                  child: Text('この作品を通報する'),
+                ),
+                PopupMenuItem(
+                  value: _MenuAction.block,
+                  child: Text('${work.summary.authorName}さんをブロックする'),
+                ),
+              ],
             ),
         ],
       ),
@@ -159,7 +253,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
     final isLast = _index == work.chapters.length - 1;
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
-        _checkEnd(n.metrics);
+        _onScroll(n.metrics);
         return false;
       },
       child: ListView(
