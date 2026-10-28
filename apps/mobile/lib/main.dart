@@ -25,7 +25,7 @@ class NovelApp extends StatelessWidget {
   Widget build(BuildContext context) {
     const seed = Color(0xFF3D5A80);
     return MaterialApp(
-      title: 'AI小説SNS',
+      title: 'Tsuzuri',
       theme: ThemeData(colorSchemeSeed: seed),
       darkTheme: ThemeData(colorSchemeSeed: seed, brightness: Brightness.dark),
       home: ListenableBuilder(

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novel_sns/features/openings/deck.dart';
+import 'package:tsuzuri/features/openings/deck.dart';
 
 const openings = [
   Opening(id: 1, text: 'a', genre: 'ミステリー'),

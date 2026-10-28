@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:novel_sns/services/api_client.dart';
-import 'package:novel_sns/services/token_store.dart';
+import 'package:tsuzuri/services/api_client.dart';
+import 'package:tsuzuri/services/token_store.dart';
 
 const base = 'http://api.test';
 const user = {'id': 'u1', 'email': 'taro@example.com', 'name': '読者'};

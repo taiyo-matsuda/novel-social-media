@@ -6,8 +6,14 @@ const apiUrl = String.fromEnvironment(
   defaultValue: 'http://localhost:8787',
 );
 
-/// Google ログインの iOS 用クライアントID（Google Cloud の「認証情報」で作る）
-const googleIosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
+/// Google ログインの iOS 用クライアントID（Google Cloud の Google Auth Platform で作った値。秘密ではない）
+const googleIosClientId = String.fromEnvironment(
+  'GOOGLE_IOS_CLIENT_ID',
+  defaultValue: '396718317713-48nmgne8mhce12ivqtajit6fco7bksdo.apps.googleusercontent.com',
+);
 
 /// サーバーが確かめる ID トークンの宛先（Web 用クライアントID）。サーバーの GOOGLE_CLIENT_IDS にも入れる
-const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+const googleServerClientId = String.fromEnvironment(
+  'GOOGLE_SERVER_CLIENT_ID',
+  defaultValue: '396718317713-pn89nr0mc059mecl8r3avgusm9j1vsqb.apps.googleusercontent.com',
+);

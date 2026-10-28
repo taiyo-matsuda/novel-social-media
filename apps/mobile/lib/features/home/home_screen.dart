@@ -20,7 +20,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('AI小説SNS')),
+      appBar: AppBar(title: const Text('Tsuzuri')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),

@@ -16,5 +16,7 @@
   ],
   "vars": {
     "ANTHROPIC_MODEL": "claude-opus-5-5",
+    // Google ログインで認めるクライアントID（Web, iOS）。秘密ではない
+    "GOOGLE_CLIENT_IDS": "396718317713-pn89nr0mc059mecl8r3avgusm9j1vsqb.apps.googleusercontent.com,396718317713-48nmgne8mhce12ivqtajit6fco7bksdo.apps.googleusercontent.com",
   },
 }

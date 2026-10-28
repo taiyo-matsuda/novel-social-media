@@ -1,6 +1,6 @@
-# AI小説SNS
+# Tsuzuri
 
-読者が好みを伝えると、AIが自分専用の小説を書き、それを公開してユーザー同士で読み合うSNS。**主役はスマホアプリ**。
+読者が好みを伝えると、AIが自分専用の小説を書き、それを公開してユーザー同士で読み合うアプリ。名前は「Tsuzuri（ツヅリ）」。海外展開を見据え、名前や表示に「SNS」は使わない。**主役はスマホアプリ**。
 プロダクトの前提とMVP範囲は [docs/product.md](docs/product.md)、設計は [docs/architecture.md](docs/architecture.md) を読む。
 
 ## 構成（モノレポ。サーバーは pnpm ワークスペース、アプリは Flutter）
