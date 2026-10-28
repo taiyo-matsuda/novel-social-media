@@ -12,6 +12,7 @@ export function toPublicSummary(w: PublicWorkWithStats): PublicWorkSummary {
   return {
     id: w.id,
     title: w.title,
+    authorId: w.authorId,
     authorName: w.authorName,
     chapterCount: w.chapterCount,
     publishedAt: w.publishedAt,
