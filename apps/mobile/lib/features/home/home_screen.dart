@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../widgets/app_button.dart';
 import '../auth/auth_controller.dart';
+import '../safety/blocked_users_screen.dart';
+import '../safety/delete_account_screen.dart';
 import '../writing/new_work_screen.dart';
 import '../writing/plot_request.dart';
 import '../writing/work_screen.dart';
@@ -94,6 +96,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: 'ログアウト',
                 primary: false,
                 onPressed: auth.signOut,
+              ),
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => BlockedUsersScreen(api: widget.api),
+                  ),
+                ),
+                child: const Text('ブロックした人'),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => DeleteAccountScreen(auth: auth),
+                  ),
+                ),
+                child: const Text('アカウントを削除'),
               ),
             ],
           ),

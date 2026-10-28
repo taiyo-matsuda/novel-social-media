@@ -12,6 +12,12 @@ class FakeReadingApi extends FakeWritingApi {
   final leaves = <(String, int, double)>[];
   final likes = <String, bool>{};
 
+  /// 通報（作品ID・理由・補足）
+  final reports = <(String, ReportReason, String?)>[];
+
+  /// ブロックした作者の利用者ID
+  final blocked = <String>{};
+
   /// 公開作品を1つ足す。章の本文は「第n章の本文（長さ [bodyLines] 行）」
   void addWork(
     String id, {
@@ -20,13 +26,16 @@ class FakeReadingApi extends FakeWritingApi {
     bool isMine = false,
     int likeCount = 0,
     int bodyLines = 1,
+    String authorId = 'u-taro',
+    String authorName = '太郎',
   }) {
     works.add(
       PublicWork(
         summary: PublicWorkSummary(
           id: id,
           title: title,
-          authorName: '太郎',
+          authorId: authorId,
+          authorName: authorName,
           chapterCount: chapters,
           publishedAt: DateTime.utc(2026, 10, 28),
           readers: 0,
@@ -47,8 +56,12 @@ class FakeReadingApi extends FakeWritingApi {
   }
 
   @override
-  Future<List<PublicWorkSummary>> fetchPublicWorks() async =>
-      works.map((w) => w.summary).toList();
+  Future<List<PublicWorkSummary>> fetchPublicWorks() async => [
+    for (final w in works)
+      if (!blocked.contains(w.summary.authorId) &&
+          !reports.any((r) => r.$1 == w.summary.id))
+        w.summary,
+  ];
 
   @override
   Future<PublicWork> fetchPublicWork(String workId) async {
@@ -74,4 +87,30 @@ class FakeReadingApi extends FakeWritingApi {
     likes[workId] = liked;
     return liked ? 1 : 0;
   }
+
+  @override
+  Future<void> reportWork(
+    String workId,
+    ReportReason reason, {
+    String? detail,
+  }) async => reports.add((workId, reason, detail));
+
+  @override
+  Future<void> block(String userId) async => blocked.add(userId);
+
+  @override
+  Future<void> unblock(String userId) async => blocked.remove(userId);
+
+  @override
+  Future<List<BlockedUser>> fetchBlocks() async => [
+    for (final id in blocked)
+      BlockedUser(
+        userId: id,
+        name: works
+            .firstWhere((w) => w.summary.authorId == id)
+            .summary
+            .authorName,
+        blockedAt: DateTime.utc(2026, 10, 28),
+      ),
+  ];
 }

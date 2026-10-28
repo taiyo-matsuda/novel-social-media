@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../services/api_client.dart';
 import '../openings/deck.dart';
+import '../safety/safety.dart';
 import 'validation.dart';
 
 enum AuthMode { signUp, signIn }
@@ -83,5 +84,18 @@ class AuthController extends ChangeNotifier {
     user = null;
     onboarded = null;
     notifyListeners();
+  }
+
+  /// 退会する。失敗したら画面に出す文を返し、成功したらログアウトした状態にする
+  Future<String?> deleteAccount(String password) async {
+    try {
+      await _api.deleteAccount(password);
+    } catch (e) {
+      return deleteAccountErrorMessage(e);
+    }
+    user = null;
+    onboarded = null;
+    notifyListeners();
+    return null;
   }
 }

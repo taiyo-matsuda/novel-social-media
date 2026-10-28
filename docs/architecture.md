@@ -77,6 +77,23 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 
 アプリが強制終了されたときは `leave` が送られないことがある（読み始めだけ残り、何も推定しない）。
 
+## 通報・ブロック・退会
+
+ストア審査で求められる機能（[決定記録](decisions/0005-reports-blocks-account-deletion.md)）。
+
+| API                                      | 内容                                                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `POST /api/public-works/:workId/reports` | 作品を通報する（`reason` と任意の `detail`）。同じ作品の通報し直しは上書き。自分の作品は 403           |
+| `GET /api/blocks`                        | ブロックした人（利用者IDと名前）を新しい順に                                                           |
+| `PUT /api/blocks/:userId`                | ブロックする。自分は 400、いない人は 404                                                               |
+| `DELETE /api/blocks/:userId`             | ブロックを解除する                                                                                     |
+| `POST /api/auth/delete-user`             | 退会（Better Auth）。アプリは `password` を必ず送る。作品などは `on delete cascade` で消え、通報は残る |
+
+- 見えなくする条件は `SELECT_PUBLIC_WORK`（`apps/api/src/features/public-works/d1-public-works-store.ts`）にまとめてある。どちらかがブロックした相手の作品と、自分が通報した作品は、一覧・読む画面・高評価・読んだ記録のどれでも 404 扱い。一覧はログインしていれば（`optionalUser`）見る人で絞る
+- ブロックに使うため、公開作品には `authorId`（利用者ID）を付けて返す。メールアドレスは返さない
+- アプリは読む画面の右上のメニューから通報・ブロックし（`lib/features/safety/report_dialog.dart`）、「書く」タブの下から「ブロックした人」（`blocked_users_screen.dart`）と「アカウントを削除」（`delete_account_screen.dart`）を開く
+- 運営が通報を確認・対応する手順は決定記録に書いた（管理画面はまだない）
+
 ## AI呼び出しの方針
 
 - 既定モデルは `claude-opus-5-5`、effort は `medium`。コストを見て `ANTHROPIC_MODEL` で調整する
@@ -89,3 +106,4 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 - 行動学習の精度：いまは題名と書き出しを渡すだけ。データが増えたら、ジャンルや章の長さの傾向も推定する
 - 生成のジョブ化：Workers の1リクエストの時間に収まらなくなったら、Queues に入れて完了を通知する形に変える
 - パスワードを忘れた人への対応（再設定メールを送るか）
+- 通報が来たときの運営への通知と管理画面

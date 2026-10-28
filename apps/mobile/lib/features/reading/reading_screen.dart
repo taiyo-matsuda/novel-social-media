@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_client.dart';
 import '../../widgets/app_button.dart';
+import '../safety/report_dialog.dart';
 import 'reading.dart';
 
-/// ほかの人の公開作品を1章ずつ読む画面。高評価もここで付ける。
+/// 右上のメニューの項目
+enum _MenuAction { report, block }
+
+/// ほかの人の公開作品を1章ずつ読む画面。高評価・通報・作者のブロックもここで行う。
 /// 章を開いたら「読み始めた」、終わりまで送ったら「読み終えた」、
 /// 読み終えずに別の章へ移ったり画面を閉じたりしたら「離れた」とその位置をサーバーに記録する（行動学習に使う）
 class ReadingScreen extends StatefulWidget {
@@ -133,6 +137,57 @@ class _ReadingScreenState extends State<ReadingScreen> {
     }
   }
 
+  /// 通報・ブロックのあとは作品が見えなくなるので、知らせて一覧へ戻る
+  void _leaveWithMessage(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _report() async {
+    final reported = await showReportDialog(
+      context,
+      api: widget.api,
+      workId: widget.workId,
+    );
+    if (reported && mounted) {
+      _leaveWithMessage('通報しました。運営が内容を確認します。');
+    }
+  }
+
+  Future<void> _block(PublicWork work) async {
+    final name = work.summary.authorName;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$nameさんをブロックしますか？'),
+        content: const Text(
+          'お互いの作品が表示されなくなります。ブロックしたことは相手に通知されません。「書く」タブの「ブロックした人」からいつでも解除できます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('やめる'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('ブロックする'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.api.block(work.summary.authorId);
+      if (mounted) _leaveWithMessage('$nameさんをブロックしました。');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('ブロックできませんでした。')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final work = _work;
@@ -145,6 +200,24 @@ class _ReadingScreenState extends State<ReadingScreen> {
               tooltip: _liked ? '高評価を外す' : '高評価を付ける',
               icon: Icon(_liked ? Icons.favorite : Icons.favorite_border),
               onPressed: _liking ? null : _toggleLike,
+            ),
+          if (work != null && !work.isMine)
+            PopupMenuButton<_MenuAction>(
+              tooltip: 'その他',
+              onSelected: (action) => switch (action) {
+                _MenuAction.report => _report(),
+                _MenuAction.block => _block(work),
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: _MenuAction.report,
+                  child: Text('この作品を通報する'),
+                ),
+                PopupMenuItem(
+                  value: _MenuAction.block,
+                  child: Text('${work.summary.authorName}さんをブロックする'),
+                ),
+              ],
             ),
         ],
       ),

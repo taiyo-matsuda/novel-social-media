@@ -19,7 +19,8 @@ type PublicWorkRow = {
 };
 
 // 公開作品と、ランキングに使う数字。作者は名前だけ取る（メールアドレスは出さない）。
-// 読者数・読了数は作者本人の読み返しを数えない。読了は最後の章を読み終えた人
+// 読者数・読了数は作者本人の読み返しを数えない。読了は最後の章を読み終えた人。
+// ?1 は見る人の利用者ID（ログインしていなければ空文字）。どちらかがブロックした相手の作品と、自分が通報した作品は出さない
 const SELECT_PUBLIC_WORK = `
   select w."id", w."author_id", w."title", u."name" as "author_name", w."published_at",
     (select count(*) from "chapters" c where c."work_id" = w."id") as "chapter_count",
@@ -32,12 +33,18 @@ const SELECT_PUBLIC_WORK = `
          and c."position" = (select max("position") from "chapters" where "work_id" = w."id")) as "completions",
     (select count(*) from "likes" l where l."work_id" = w."id") as "likes"
   from "works" w join "user" u on u."id" = w."author_id"
-  where w."status" = 'published'`;
+  where w."status" = 'published'
+    and not exists (select 1 from "blocks" b
+      where (b."blocker_id" = ?1 and b."blocked_id" = w."author_id")
+         or (b."blocker_id" = w."author_id" and b."blocked_id" = ?1))
+    and not exists (select 1 from "reports" r
+      where r."reporter_id" = ?1 and r."work_id" = w."id")`;
 
 function toStats(row: PublicWorkRow): PublicWorkWithStats {
   return {
     id: row.id,
     title: row.title,
+    authorId: row.author_id,
     authorName: row.author_name,
     chapterCount: row.chapter_count,
     publishedAt: row.published_at,
@@ -49,24 +56,30 @@ function toStats(row: PublicWorkRow): PublicWorkWithStats {
 
 /**
  * 公開作品を他人が読むための読み書き。
- * 非公開（下書き）の作品はどのクエリでも見つからない扱いにする。書き込みはログイン中の利用者の分だけ。
+ * 非公開（下書き）の作品や、ブロック・通報で見えなくした作品は見つからない扱いにする。書き込みはログイン中の利用者の分だけ。
  */
 export function d1PublicWorksStore(db: D1Database) {
-  async function findPublished(workId: string) {
+  async function findPublished(viewerId: string, workId: string) {
     return db
-      .prepare(`${SELECT_PUBLIC_WORK} and w."id" = ?`)
-      .bind(workId)
+      .prepare(`${SELECT_PUBLIC_WORK} and w."id" = ?2`)
+      .bind(viewerId, workId)
       .first<PublicWorkRow>();
   }
 
   return {
-    /** 新しく公開された順に [limit] 件。並べ替えは rankPublicWorks で行う */
-    async listRecent(limit: number): Promise<PublicWorkWithStats[]> {
+    /**
+     * [viewerId] に見える公開作品を、新しく公開された順に [limit] 件。並べ替えは rankPublicWorks で行う。
+     * ログインしていなければ [viewerId] は null
+     */
+    async listRecent(
+      viewerId: string | null,
+      limit: number,
+    ): Promise<PublicWorkWithStats[]> {
       const { results } = await db
         .prepare(
-          `${SELECT_PUBLIC_WORK} order by w."published_at" desc, w."rowid" desc limit ?`,
+          `${SELECT_PUBLIC_WORK} order by w."published_at" desc, w."rowid" desc limit ?2`,
         )
-        .bind(limit)
+        .bind(viewerId ?? "", limit)
         .all<PublicWorkRow>();
       return results.map(toStats);
     },
@@ -76,7 +89,7 @@ export function d1PublicWorksStore(db: D1Database) {
       userId: string,
       workId: string,
     ): Promise<GetPublicWorkResponse["work"] | null> {
-      const row = await findPublished(workId);
+      const row = await findPublished(userId, workId);
       if (!row) return null;
       const [chapters, liked] = await Promise.all([
         db
@@ -104,17 +117,17 @@ export function d1PublicWorksStore(db: D1Database) {
     /**
      * 章を読み始めた・読み終えた・読み終えずに離れたことを記録する。同じ人の同じ章・同じ種類は一度だけ残す。
      * 離脱は何度でも送られてくるので、いちばん先まで読んだ読了率を残す。
-     * 公開作品のその章がなければ false
+     * 見える公開作品のその章がなければ false
      */
     async recordRead(
       userId: string,
       workId: string,
       read: RecordReadRequest,
     ): Promise<boolean> {
+      if (!(await findPublished(userId, workId))) return false;
       const chapter = await db
         .prepare(
-          `select c."id" from "chapters" c join "works" w on w."id" = c."work_id"
-           where w."id" = ? and w."status" = 'published' and c."position" = ?`,
+          `select "id" from "chapters" where "work_id" = ? and "position" = ?`,
         )
         .bind(workId, read.position)
         .first<{ id: string }>();
@@ -161,7 +174,7 @@ export function d1PublicWorksStore(db: D1Database) {
       workId: string,
       liked: boolean,
     ): Promise<{ likes: number } | "not_found" | "own_work"> {
-      const row = await findPublished(workId);
+      const row = await findPublished(userId, workId);
       if (!row) return "not_found";
       if (row.author_id === userId) return "own_work";
       await db

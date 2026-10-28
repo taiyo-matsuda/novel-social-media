@@ -4,9 +4,11 @@ import {
   generateChapterRequestSchema,
   openingIdSchema,
   recordReadRequestSchema,
+  reportWorkRequestSchema,
   saveOpeningChoiceRequestSchema,
   setLikeRequestSchema,
   updateWorkRequestSchema,
+  userIdSchema,
   workIdSchema,
 } from "./index";
 
@@ -97,5 +99,37 @@ describe("setLikeRequestSchema", () => {
   it("真偽値だけ受け付ける", () => {
     expect(setLikeRequestSchema.safeParse({ liked: true }).success).toBe(true);
     expect(setLikeRequestSchema.safeParse({ liked: 1 }).success).toBe(false);
+  });
+});
+
+describe("reportWorkRequestSchema", () => {
+  it("決まった理由と、前後の空白を除いた補足を受け付ける", () => {
+    expect(
+      reportWorkRequestSchema.parse({ reason: "spam", detail: "  宣伝です " }),
+    ).toEqual({ reason: "spam", detail: "宣伝です" });
+    expect(reportWorkRequestSchema.parse({ reason: "other" })).toEqual({
+      reason: "other",
+    });
+  });
+
+  it("知らない理由や長すぎる補足は弾く", () => {
+    expect(
+      reportWorkRequestSchema.safeParse({ reason: "boring" }).success,
+    ).toBe(false);
+    expect(
+      reportWorkRequestSchema.safeParse({
+        reason: "other",
+        detail: "あ".repeat(501),
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("userIdSchema", () => {
+  it("英数字と - _ だけの ID を受け付ける", () => {
+    expect(userIdSchema.safeParse("aB3_x-9").success).toBe(true);
+    expect(userIdSchema.safeParse("").success).toBe(false);
+    expect(userIdSchema.safeParse("a/b").success).toBe(false);
+    expect(userIdSchema.safeParse("a".repeat(65)).success).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import 'package:novel_sns/services/api_client.dart';
 PublicWorkSummary summary({int readers = 0, int likes = 0}) =>
     PublicWorkSummary(
       id: 'w1',
+      authorId: 'u2',
       title: '古書店の少女',
       authorName: '太郎',
       chapterCount: 3,
