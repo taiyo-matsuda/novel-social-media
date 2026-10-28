@@ -2,9 +2,12 @@ import { FakeNovelGenerator } from "@novel/core/ai";
 import type {
   GenerateChapterResponse,
   GetOwnWorkResponse,
+  GetPublicWorkResponse,
   ListOpeningChoicesResponse,
   ListOpeningsResponse,
   ListOwnWorksResponse,
+  ListPublicWorksResponse,
+  SetLikeResponse,
   WorkSummary,
 } from "@novel/core/api";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -47,10 +50,14 @@ function json(method: string, body: unknown, cookie?: string): RequestInit {
 }
 
 /** 登録して、ログイン状態のクッキーを返す */
-async function signUp(email = "taro@example.com", password = "password123") {
+async function signUp(
+  email = "taro@example.com",
+  password = "password123",
+  name = "読者",
+) {
   const res = await request(
     "/api/auth/sign-up/email",
-    json("POST", { email, password, name: "読者" }),
+    json("POST", { email, password, name }),
   );
   expect(res.status).toBe(200);
   const cookie = res.headers.get("set-cookie")?.split(";")[0];
@@ -326,5 +333,152 @@ describe("自分の作品", () => {
         )
       ).status,
     ).toBe(400);
+  });
+});
+
+describe("みんなの作品", () => {
+  /** 作品を書いてもらい（章は [chapters] 個）、題名を付けて公開する */
+  async function publish(cookie: string, title: string, chapters = 1) {
+    let workId: string | undefined;
+    for (let i = 0; i < chapters; i++) {
+      const res = await request(
+        "/api/chapters",
+        json("POST", workId ? { workId } : {}, cookie),
+      );
+      workId = ((await res.json()) as GenerateChapterResponse).workId;
+    }
+    const res = await request(
+      `/api/works/${workId}`,
+      json("PATCH", { title, published: true }, cookie),
+    );
+    expect(res.status).toBe(200);
+    return workId!;
+  }
+
+  async function list() {
+    const res = await request("/api/public-works");
+    expect(res.status).toBe(200);
+    return ((await res.json()) as ListPublicWorksResponse).works;
+  }
+
+  function get(workId: string, cookie: string) {
+    return request(`/api/public-works/${workId}`, {
+      headers: { Cookie: cookie },
+    });
+  }
+
+  it("公開作品だけが作者名付きで並び、メールアドレスや下書きは出ない", async () => {
+    const taro = await signUp("taro@example.com", "password123", "太郎");
+    await publish(taro, "古書店の少女", 2);
+    await request("/api/chapters", json("POST", {}, taro)); // 下書きのまま
+
+    const works = await list();
+    expect(works).toHaveLength(1);
+    expect(works[0]).toMatchObject({
+      title: "古書店の少女",
+      authorName: "太郎",
+      chapterCount: 2,
+      readers: 0,
+      likes: 0,
+    });
+    expect(JSON.stringify(works)).not.toContain("taro@example.com");
+  });
+
+  it("本文はログインしないと読めず、ログインすれば展開リクエスト抜きで全章を読める", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const workId = await publish(taro, "古書店の少女", 2);
+
+    expect((await request(`/api/public-works/${workId}`)).status).toBe(401);
+
+    const res = await get(workId, hanako);
+    expect(res.status).toBe(200);
+    const { work } = (await res.json()) as GetPublicWorkResponse;
+    expect(work).toMatchObject({ isMine: false, likedByMe: false });
+    expect(work.chapters.map((c) => c.position)).toEqual([1, 2]);
+    expect(work.chapters[0]).not.toHaveProperty("plotRequest");
+  });
+
+  it("非公開に戻した作品や存在しない作品は読めない", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const workId = await publish(taro, "古書店の少女");
+    await request(
+      `/api/works/${workId}`,
+      json("PATCH", { published: false }, taro),
+    );
+
+    expect((await get(workId, hanako)).status).toBe(404);
+    expect((await get("abc", hanako)).status).toBe(404);
+    expect(await list()).toEqual([]);
+  });
+
+  it("読んだ人数は一人一回だけ数え、作者本人の読み返しは数えない", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const workId = await publish(taro, "古書店の少女");
+
+    const read = (cookie: string, body: object) =>
+      request(`/api/public-works/${workId}/reads`, json("POST", body, cookie));
+
+    expect((await read(hanako, { position: 1, kind: "start" })).status).toBe(
+      204,
+    );
+    await read(hanako, { position: 1, kind: "start" });
+    await read(taro, { position: 1, kind: "start" });
+    expect((await list())[0].readers).toBe(1);
+
+    expect((await read(hanako, { position: 9, kind: "start" })).status).toBe(
+      404,
+    );
+    expect((await read(hanako, { position: 1, kind: "leave" })).status).toBe(
+      400,
+    );
+  });
+
+  it("高評価を付け外しでき、自分の作品には付けられない", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const workId = await publish(taro, "古書店の少女");
+
+    const like = (cookie: string, liked: boolean) =>
+      request(
+        `/api/public-works/${workId}/like`,
+        json("PUT", { liked }, cookie),
+      );
+
+    const res = await like(hanako, true);
+    expect(res.status).toBe(200);
+    expect((await res.json()) as SetLikeResponse).toEqual({
+      liked: true,
+      likes: 1,
+    });
+    await like(hanako, true);
+    expect((await list())[0].likes).toBe(1);
+    const { work } = (await (
+      await get(workId, hanako)
+    ).json()) as GetPublicWorkResponse;
+    expect(work.likedByMe).toBe(true);
+
+    expect(
+      ((await (await like(hanako, false)).json()) as SetLikeResponse).likes,
+    ).toBe(0);
+    expect((await like(taro, true)).status).toBe(403);
+  });
+
+  it("高評価の多い作品がランキングの上に来る", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const older = await publish(taro, "先に公開した作品");
+    await publish(taro, "後で公開した作品");
+    await request(
+      `/api/public-works/${older}/like`,
+      json("PUT", { liked: true }, hanako),
+    );
+
+    expect((await list()).map((w) => w.title)).toEqual([
+      "先に公開した作品",
+      "後で公開した作品",
+    ]);
   });
 });

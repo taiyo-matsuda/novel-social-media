@@ -105,6 +105,72 @@ class GeneratedChapter {
       );
 }
 
+/// ランキング一覧の1行（packages/core/src/api の PublicWorkSummary）
+class PublicWorkSummary {
+  const PublicWorkSummary({
+    required this.id,
+    required this.title,
+    required this.authorName,
+    required this.chapterCount,
+    required this.publishedAt,
+    required this.readers,
+    required this.likes,
+  });
+
+  final String id;
+  final String title;
+  final String authorName;
+  final int chapterCount;
+  final DateTime publishedAt;
+
+  /// 読み始めた人数（作者本人は数えない）
+  final int readers;
+
+  /// 高評価の数
+  final int likes;
+
+  factory PublicWorkSummary.fromJson(Map<String, dynamic> json) =>
+      PublicWorkSummary(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        authorName: json['authorName'] as String,
+        chapterCount: json['chapterCount'] as int,
+        publishedAt: _parseTime(json['publishedAt'] as String)!,
+        readers: json['readers'] as int,
+        likes: json['likes'] as int,
+      );
+}
+
+/// ほかの人の公開作品と全章（GET /api/public-works/:workId）。
+/// 展開リクエストは作者の個人的なメモなので含まれない
+class PublicWork {
+  const PublicWork({
+    required this.summary,
+    required this.isMine,
+    required this.likedByMe,
+    required this.chapters,
+  });
+
+  final PublicWorkSummary summary;
+
+  /// 自分の作品か（自分の作品には高評価を付けられない）
+  final bool isMine;
+  final bool likedByMe;
+  final List<Chapter> chapters;
+
+  factory PublicWork.fromJson(Map<String, dynamic> json) => PublicWork(
+    summary: PublicWorkSummary.fromJson(json),
+    isMine: json['isMine'] as bool,
+    likedByMe: json['likedByMe'] as bool,
+    chapters: (json['chapters'] as List)
+        .map((c) => Chapter.fromJson(c as Map<String, dynamic>))
+        .toList(),
+  );
+}
+
+/// 章を読み始めた・読み終えた（POST /api/public-works/:workId/reads の kind）
+enum ReadKind { start, complete }
+
 /// D1 の datetime('now')（"2026-10-28 01:00:00"、UTC）と ISO 形式のどちらも読む
 DateTime? _parseTime(String? value) {
   if (value == null) return null;
@@ -316,5 +382,43 @@ class ApiClient {
       body: {'title': ?title, 'published': ?published},
     ) as Map<String, dynamic>;
     return WorkSummary.fromJson(json);
+  }
+
+  // ---- みんなの作品 ----
+
+  /// ほかの人の公開作品をランキング順に取得する。
+  Future<List<PublicWorkSummary>> fetchPublicWorks() async {
+    final json =
+        await _request('GET', '/api/public-works') as Map<String, dynamic>;
+    return (json['works'] as List)
+        .map((w) => PublicWorkSummary.fromJson(w as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 公開作品と全章を取得する（ログイン必須）。
+  Future<PublicWork> fetchPublicWork(String workId) async {
+    final json = await _request(
+      'GET',
+      '/api/public-works/$workId',
+    ) as Map<String, dynamic>;
+    return PublicWork.fromJson(json['work'] as Map<String, dynamic>);
+  }
+
+  /// 章を読み始めた・読み終えたことを記録する（ランキングと行動学習に使う）。
+  Future<void> recordRead(String workId, int position, ReadKind kind) =>
+      _request(
+        'POST',
+        '/api/public-works/$workId/reads',
+        body: {'position': position, 'kind': kind.name},
+      );
+
+  /// 高評価を付ける・外す。付けたあとの高評価の数を返す。
+  Future<int> setLike(String workId, {required bool liked}) async {
+    final json = await _request(
+      'PUT',
+      '/api/public-works/$workId/like',
+      body: {'liked': liked},
+    ) as Map<String, dynamic>;
+    return json['likes'] as int;
   }
 }

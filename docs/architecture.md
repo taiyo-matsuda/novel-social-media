@@ -49,7 +49,22 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 | `GET /api/works/:workId`   | 本人の作品と全章、各章の展開リクエスト                 |
 | `PATCH /api/works/:workId` | 題名の変更（`title`）と公開・非公開（`published`）     |
 
-どれも `author_id` をログイン中の利用者IDで絞る（`apps/api/src/features/works/d1-works-store.ts`）。他人の作品は 404 にする。公開作品を他人が読む API はランキングと一緒に作る。
+どれも `author_id` をログイン中の利用者IDで絞る（`apps/api/src/features/works/d1-works-store.ts`）。他人の作品は 404 にする。
+
+## みんなの作品（他人の公開作品を読む）
+
+ログイン後の画面は下のタブで「みんなの作品」（`lib/features/reading/public_works_screen.dart`）と「書く」（ホーム）を切り替える（`lib/features/home/main_shell.dart`）。
+
+| API                                    | 内容                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `GET /api/public-works`                | 公開作品をランキング順に50件。題名・作者名・章の数・読んだ人数・高評価の数     |
+| `GET /api/public-works/:workId`        | 公開作品と全章（ログイン必須）。展開リクエストは作者のメモなので返さない       |
+| `POST /api/public-works/:workId/reads` | 章を読み始めた（`start`）・読み終えた（`complete`）。同じ人・章・種類は1回だけ |
+| `PUT /api/public-works/:workId/like`   | 高評価を付ける・外す（`liked`）。自分の作品には付けられない（403）             |
+
+- 下書きに戻した作品はどの API でも 404。作者は `user.name` だけ返し、メールアドレスは返さない
+- ランキングは新しく公開された200件を `rankWorks()`（`packages/core/src/ranking/score.ts`）で並べる（`apps/api/src/features/public-works/rank-public-works.ts`）。読者数・読了数は作者本人を数えず、読了は最後の章を読み終えた人
+- 読む画面（`lib/features/reading/reading_screen.dart`）は1章ずつ表示し、章を開いたら `start`、終わりまで送ったら `complete` を送る。自分の作品の読み返しは送らない
 
 ## AI呼び出しの方針
 
@@ -59,6 +74,7 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 
 ## 今後決めること
 
-- ランキング集計：`reading_events` を集計する API と、重い集計を定期実行（Cron Triggers）にするか
+- ランキング集計：いまはリクエストごとに集計している。作品が増えたら定期実行（Cron Triggers）で集計して保存する形に変える
+- 離脱位置（`reading_events` の `leave`）の記録と、行動学習を次の生成に反映すること
 - 生成のジョブ化：Workers の1リクエストの時間に収まらなくなったら、Queues に入れて完了を通知する形に変える
 - パスワードを忘れた人への対応（再設定メールを送るか）

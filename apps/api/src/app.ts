@@ -2,13 +2,18 @@ import type { NovelGenerator } from "@novel/core/ai";
 import {
   generateChapterRequestSchema,
   openingIdSchema,
+  recordReadRequestSchema,
   saveOpeningChoiceRequestSchema,
+  setLikeRequestSchema,
   updateWorkRequestSchema,
   workIdSchema,
   type GetOwnWorkResponse,
+  type GetPublicWorkResponse,
   type ListOpeningChoicesResponse,
   type ListOpeningsResponse,
   type ListOwnWorksResponse,
+  type ListPublicWorksResponse,
+  type SetLikeResponse,
 } from "@novel/core/api";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -21,6 +26,8 @@ import {
   WorkNotFoundError,
 } from "./features/generation/generate-next-chapter";
 import { d1OpeningsStore } from "./features/openings/d1-openings-store";
+import { d1PublicWorksStore } from "./features/public-works/d1-public-works-store";
+import { rankPublicWorks } from "./features/public-works/rank-public-works";
 import { d1WorksStore } from "./features/works/d1-works-store";
 import { createNovelGenerator } from "./lib/ai";
 import { AiRefusalError } from "./lib/ai/claude";
@@ -156,6 +163,64 @@ export function createApp(
     );
     if (!work) return c.json({ error: "作品が見つかりません" }, 404);
     return c.json(work);
+  });
+
+  // ---- みんなの作品 ----
+  // 一覧（題名・作者名・数字）はログインなしでも見られる。本文はログイン必須
+
+  app.get("/api/public-works", async (c) => {
+    // 新しい 200 件の中からランキング上位 50 件を出す（作品が増えたら集計を定期実行に変える）
+    const recent = await d1PublicWorksStore(c.env.DB).listRecent(200);
+    const works = rankPublicWorks(recent, new Date(), 50);
+    return c.json<ListPublicWorksResponse>({ works });
+  });
+
+  app.get("/api/public-works/:workId", requireUser, async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const work = await d1PublicWorksStore(c.env.DB).get(
+      c.get("userId"),
+      workId.data,
+    );
+    if (!work) return c.json({ error: "作品が見つかりません" }, 404);
+    return c.json<GetPublicWorkResponse>({ work });
+  });
+
+  app.post("/api/public-works/:workId/reads", requireUser, async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const body = recordReadRequestSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: "リクエストが不正です" }, 400);
+    const recorded = await d1PublicWorksStore(c.env.DB).recordRead(
+      c.get("userId"),
+      workId.data,
+      body.data,
+    );
+    if (!recorded) return c.json({ error: "章が見つかりません" }, 404);
+    return c.body(null, 204);
+  });
+
+  app.put("/api/public-works/:workId/like", requireUser, async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const body = setLikeRequestSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: "リクエストが不正です" }, 400);
+    const result = await d1PublicWorksStore(c.env.DB).setLike(
+      c.get("userId"),
+      workId.data,
+      body.data.liked,
+    );
+    if (result === "not_found") {
+      return c.json({ error: "作品が見つかりません" }, 404);
+    }
+    if (result === "own_work") {
+      return c.json({ error: "自分の作品には高評価を付けられません" }, 403);
+    }
+    return c.json<SetLikeResponse>({ liked: body.data.liked, ...result });
   });
 
   return app;

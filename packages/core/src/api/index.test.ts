@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   generateChapterRequestSchema,
   openingIdSchema,
+  recordReadRequestSchema,
   saveOpeningChoiceRequestSchema,
+  setLikeRequestSchema,
   updateWorkRequestSchema,
   workIdSchema,
 } from "./index";
@@ -61,5 +63,26 @@ describe("workIdSchema", () => {
       workIdSchema.safeParse("6f1c2b1e-3d4a-4c5b-8e9f-0a1b2c3d4e5f").success,
     ).toBe(true);
     expect(workIdSchema.safeParse("1").success).toBe(false);
+  });
+});
+
+describe("recordReadRequestSchema", () => {
+  it("章の番号と、読み始め・読了だけ受け付ける", () => {
+    expect(
+      recordReadRequestSchema.safeParse({ position: 1, kind: "start" }).success,
+    ).toBe(true);
+    expect(
+      recordReadRequestSchema.safeParse({ position: 0, kind: "start" }).success,
+    ).toBe(false);
+    expect(
+      recordReadRequestSchema.safeParse({ position: 1, kind: "leave" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("setLikeRequestSchema", () => {
+  it("真偽値だけ受け付ける", () => {
+    expect(setLikeRequestSchema.safeParse({ liked: true }).success).toBe(true);
+    expect(setLikeRequestSchema.safeParse({ liked: 1 }).success).toBe(false);
   });
 });

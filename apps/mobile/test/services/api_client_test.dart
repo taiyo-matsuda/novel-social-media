@@ -218,4 +218,62 @@ void main() {
       expect(work.published, isFalse);
     });
   });
+
+  group('みんなの作品', () {
+    const summary = {
+      'id': 'w1',
+      'title': '古書店の少女',
+      'authorName': '太郎',
+      'chapterCount': 2,
+      'publishedAt': '2026-10-28 01:00:00',
+      'readers': 3,
+      'likes': 1,
+    };
+
+    test('ランキング一覧を読み込む', () async {
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'works': [summary],
+        }),
+      );
+      final works = await api.fetchPublicWorks();
+      expect(sent.single.url.path, '/api/public-works');
+      expect(works.single.authorName, '太郎');
+      expect(works.single.publishedAt, DateTime.utc(2026, 10, 28, 1));
+    });
+
+    test('作品と全章を読み、展開リクエストは持たない', () async {
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'work': {
+            ...summary,
+            'isMine': false,
+            'likedByMe': true,
+            'chapters': [
+              {'position': 1, 'title': '古書店', 'body': '本文'},
+            ],
+          },
+        }),
+      );
+      final work = await api.fetchPublicWork('w1');
+      expect(sent.single.url.path, '/api/public-works/w1');
+      expect(work.likedByMe, isTrue);
+      expect(work.chapters.single.plotRequest, isNull);
+    });
+
+    test('読んだ記録と高評価を送る', () async {
+      final api = clientWith(
+        (req) async => req.url.path.endsWith('/like')
+            ? jsonResponse({'liked': true, 'likes': 2})
+            : jsonResponse(null, status: 204),
+      );
+      await api.recordRead('w1', 2, ReadKind.complete);
+      expect(sent.last.url.path, '/api/public-works/w1/reads');
+      expect(jsonDecode(sent.last.body), {'position': 2, 'kind': 'complete'});
+
+      expect(await api.setLike('w1', liked: true), 2);
+      expect(sent.last.method, 'PUT');
+      expect(jsonDecode(sent.last.body), {'liked': true});
+    });
+  });
 }
