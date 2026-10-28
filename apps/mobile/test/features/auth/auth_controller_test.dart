@@ -39,6 +39,14 @@ class FakeApi extends ApiClient {
 
   @override
   Future<Map<int, bool>> fetchOwnChoices() async => choices;
+
+  @override
+  Future<void> deleteAccount(String password) async {
+    if (password != 'password123') {
+      throw ApiException(400, 'Invalid password', code: 'INVALID_PASSWORD');
+    }
+    session = null;
+  }
 }
 
 void main() {
@@ -90,6 +98,16 @@ void main() {
   test('ログアウトすると未ログインに戻る', () async {
     await auth.submit(AuthMode.signUp, 'taro@example.com', 'password123');
     await auth.signOut();
+    expect(auth.user, isNull);
+    expect(auth.onboarded, isNull);
+  });
+
+  test('退会はパスワードが違えば理由を返し、できたら未ログインに戻る', () async {
+    await auth.submit(AuthMode.signUp, 'taro@example.com', 'password123');
+    expect(await auth.deleteAccount('wrong'), 'パスワードが違います。');
+    expect(auth.user, isNotNull);
+
+    expect(await auth.deleteAccount('password123'), isNull);
     expect(auth.user, isNull);
     expect(auth.onboarded, isNull);
   });

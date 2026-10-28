@@ -8,6 +8,7 @@
     "./ai": "./src/ai/index.ts",
     "./api": "./src/api/index.ts",
     "./auth": "./src/auth/index.ts",
+    "./learning": "./src/learning/traits.ts",
     "./openings": "./src/openings/deck.ts",
     "./ranking": "./src/ranking/score.ts"
   },

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'features/auth/auth_controller.dart';
 import 'features/auth/sign_in_screen.dart';
-import 'features/home/home_screen.dart';
+import 'features/home/main_shell.dart';
 import 'features/openings/openings_screen.dart';
 import 'services/api_client.dart';
 import 'services/config.dart';
@@ -37,14 +37,15 @@ class NovelApp extends StatelessWidget {
   /// ログイン状態で見せる画面を切り替える。
   /// - 未ログイン：ログイン画面
   /// - ログイン済みで好みが未入力：冒頭文の画面
-  /// - 好みを伝え終えた：ホーム（冒頭文の画面はホームから選び直しに使う）
+  /// - 好みを伝え終えた：「みんなの作品」と「書く」のタブ（冒頭文の画面は「書く」から選び直しに使う）
   Widget _root(BuildContext context) {
     if (!auth.initialized) return const _Loading();
     if (auth.user == null) return SignInScreen(auth: auth);
     return switch (auth.onboarded) {
       null => const _Loading(),
       false => OpeningsScreen(api: api, onFinish: auth.refreshOnboarded),
-      true => HomeScreen(
+      true => MainShell(
+        api: api,
         auth: auth,
         onChooseAgain: () => Navigator.of(context).push(
           MaterialPageRoute<void>(

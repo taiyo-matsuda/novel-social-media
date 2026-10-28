@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChapterPrompt, parseChapter } from "./prompts";
+import {
+  buildChapterPrompt,
+  LEARNED_TRAITS_GUIDE,
+  parseChapter,
+} from "./prompts";
 
 const preference = {
   likedOpenings: ["雨の夜、古書店の扉が開いた。"],
@@ -16,6 +20,16 @@ describe("buildChapterPrompt", () => {
     expect(prompt).not.toContain("これまでの章");
   });
 
+  it("第1章への希望は「読みたい話」として渡す", () => {
+    const prompt = buildChapterPrompt({
+      preference,
+      previousChapters: [],
+      plotRequest: "猫が探偵役の話",
+    });
+    expect(prompt).toContain("## 読者が読みたい話\n猫が探偵役の話");
+    expect(prompt).not.toContain("展開リクエスト");
+  });
+
   it("続きの章では前の章と展開リクエストを含める", () => {
     const prompt = buildChapterPrompt({
       preference,
@@ -23,8 +37,30 @@ describe("buildChapterPrompt", () => {
       plotRequest: "店主の秘密を明かしてほしい",
     });
     expect(prompt).toContain("### 第1章\n一章の本文");
-    expect(prompt).toContain("店主の秘密を明かしてほしい");
+    expect(prompt).toContain(
+      "## 読者からの展開リクエスト\n店主の秘密を明かしてほしい",
+    );
     expect(prompt).toContain("第2章を書いてください");
+  });
+
+  it("行動から分かった傾向があれば、使い方の指示と一緒に渡す", () => {
+    const prompt = buildChapterPrompt({
+      preference: {
+        ...preference,
+        learnedTraits: ["高評価した作品：「灯台」（書き出し：霧の朝）"],
+      },
+      previousChapters: [],
+    });
+    expect(prompt).toContain(
+      "## 行動から分かった読者の傾向\n- 高評価した作品：「灯台」（書き出し：霧の朝）",
+    );
+    expect(prompt).toContain(LEARNED_TRAITS_GUIDE);
+  });
+
+  it("傾向がまだなければ指示を付けない", () => {
+    const prompt = buildChapterPrompt({ preference, previousChapters: [] });
+    expect(prompt).toContain("## 行動から分かった読者の傾向\n（なし）");
+    expect(prompt).not.toContain(LEARNED_TRAITS_GUIDE);
   });
 });
 

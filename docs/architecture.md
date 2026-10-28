@@ -34,12 +34,65 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 
 ## 小説生成の流れ
 
-1. アプリが `POST /api/chapters` を呼ぶ（`apps/mobile/lib/services/api_client.dart`、まだ画面はない）
+1. アプリが `POST /api/chapters` を呼ぶ。第1章は「新しい小説」画面（`lib/features/writing/new_work_screen.dart`）から「どんな話を読みたいか」を、続きは作品の画面（`work_screen.dart`）から「次はこうしてほしい」を、どちらも任意で `plotRequest` として送る
 2. サーバーがログインを確かめ、入力を `generateChapterRequestSchema` で検証する
 3. `generateNextChapter()` が好みと過去の章を集め、`NovelGenerator` に章を書かせる（APIキーがなければフェイク）
 4. 生成した章を `chapters` に保存して返す
 
 生成は数十秒かかることがある。アプリには進行中であることを表示する。
+
+## 自分の作品
+
+| API                        | 内容                                                   |
+| -------------------------- | ------------------------------------------------------ |
+| `GET /api/works`           | 本人の作品を、最後に章が増えた順に返す（ホームの一覧） |
+| `GET /api/works/:workId`   | 本人の作品と全章、各章の展開リクエスト                 |
+| `PATCH /api/works/:workId` | 題名の変更（`title`）と公開・非公開（`published`）     |
+
+どれも `author_id` をログイン中の利用者IDで絞る（`apps/api/src/features/works/d1-works-store.ts`）。他人の作品は 404 にする。
+
+## みんなの作品（他人の公開作品を読む）
+
+ログイン後の画面は下のタブで「みんなの作品」（`lib/features/reading/public_works_screen.dart`）と「書く」（ホーム）を切り替える（`lib/features/home/main_shell.dart`）。
+
+| API                                    | 内容                                                                                                                                                                        |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/public-works`                | 公開作品をランキング順に50件。題名・作者名・章の数・読んだ人数・高評価の数                                                                                                  |
+| `GET /api/public-works/:workId`        | 公開作品と全章（ログイン必須）。展開リクエストは作者のメモなので返さない                                                                                                    |
+| `POST /api/public-works/:workId/reads` | 章を読み始めた（`start`）・読み終えた（`complete`）・読み終えずに離れた（`leave` と読了率 `progress`）。同じ人・章・種類は1回だけで、離脱はいちばん先まで読んだ読了率を残す |
+| `PUT /api/public-works/:workId/like`   | 高評価を付ける・外す（`liked`）。自分の作品には付けられない（403）                                                                                                          |
+
+- 下書きに戻した作品はどの API でも 404。作者は `user.name` だけ返し、メールアドレスは返さない
+- ランキングは新しく公開された200件を `rankWorks()`（`packages/core/src/ranking/score.ts`）で並べる（`apps/api/src/features/public-works/rank-public-works.ts`）。読者数・読了数は作者本人を数えず、読了は最後の章を読み終えた人
+- 読む画面（`lib/features/reading/reading_screen.dart`）は1章ずつ表示し、章を開いたら `start`、終わりまで送ったら `complete`、読み終えずに別の章へ移るか画面を閉じたら `leave` とどこまで読んだか（`readProgress()`）を送る。自分の作品の読み返しは送らない
+
+## 行動学習（読み方を次の生成に反映する）
+
+章を生成するとき、`d1ChapterStore().loadPreference()` が冒頭文の選択に加えて、その人が他人の作品をどう読んだかを集め（`apps/api/src/features/learning/d1-reading-histories.ts`、最近触れた20作品）、`inferLearnedTraits()`（`packages/core/src/learning/traits.ts`）で「読者の傾向」の文に変えてプロンプトに入れる。
+
+- 好きな作品：高評価した、または最後の章まで読み終えた作品
+- 合わなかった作品：読み終えずに離れた作品（離れた章と読了率付き）。高評価した作品や、離れた章より先を読み終えた作品は含めない
+- どちらも新しい順に3件まで、題名と第1章の書き出しを添える。プロンプトでは「雰囲気は取り入れ、文章はまねしない」と指示する
+- 自分の作品の読み返しは使わない。非公開に戻った作品も、読んだ事実は好みとして使う
+
+アプリが強制終了されたときは `leave` が送られないことがある（読み始めだけ残り、何も推定しない）。
+
+## 通報・ブロック・退会
+
+ストア審査で求められる機能（[決定記録](decisions/0005-reports-blocks-account-deletion.md)）。
+
+| API                                      | 内容                                                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `POST /api/public-works/:workId/reports` | 作品を通報する（`reason` と任意の `detail`）。同じ作品の通報し直しは上書き。自分の作品は 403           |
+| `GET /api/blocks`                        | ブロックした人（利用者IDと名前）を新しい順に                                                           |
+| `PUT /api/blocks/:userId`                | ブロックする。自分は 400、いない人は 404                                                               |
+| `DELETE /api/blocks/:userId`             | ブロックを解除する                                                                                     |
+| `POST /api/auth/delete-user`             | 退会（Better Auth）。アプリは `password` を必ず送る。作品などは `on delete cascade` で消え、通報は残る |
+
+- 見えなくする条件は `SELECT_PUBLIC_WORK`（`apps/api/src/features/public-works/d1-public-works-store.ts`）にまとめてある。どちらかがブロックした相手の作品と、自分が通報した作品は、一覧・読む画面・高評価・読んだ記録のどれでも 404 扱い。一覧はログインしていれば（`optionalUser`）見る人で絞る
+- ブロックに使うため、公開作品には `authorId`（利用者ID）を付けて返す。メールアドレスは返さない
+- アプリは読む画面の右上のメニューから通報・ブロックし（`lib/features/safety/report_dialog.dart`）、「書く」タブの下から「ブロックした人」（`blocked_users_screen.dart`）と「アカウントを削除」（`delete_account_screen.dart`）を開く
+- 運営が通報を確認・対応する手順は決定記録に書いた（管理画面はまだない）
 
 ## AI呼び出しの方針
 
@@ -49,6 +102,8 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 
 ## 今後決めること
 
-- ランキング集計：`reading_events` を集計する API と、重い集計を定期実行（Cron Triggers）にするか
+- ランキング集計：いまはリクエストごとに集計している。作品が増えたら定期実行（Cron Triggers）で集計して保存する形に変える
+- 行動学習の精度：いまは題名と書き出しを渡すだけ。データが増えたら、ジャンルや章の長さの傾向も推定する
 - 生成のジョブ化：Workers の1リクエストの時間に収まらなくなったら、Queues に入れて完了を通知する形に変える
 - パスワードを忘れた人への対応（再設定メールを送るか）
+- 通報が来たときの運営への通知と管理画面
