@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novel_sns/features/safety/safety.dart';
-import 'package:novel_sns/services/api_client.dart';
+import 'package:tsuzuri/features/safety/safety.dart';
+import 'package:tsuzuri/services/api_client.dart';
 
 void main() {
   test('通報の理由はすべて日本語で見せる', () {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novel_sns/features/reading/public_works_screen.dart';
+import 'package:tsuzuri/features/reading/public_works_screen.dart';
 
 import 'fake_reading_api.dart';
 

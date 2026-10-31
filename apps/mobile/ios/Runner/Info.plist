@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Novel Sns</string>
+	<string>Tsuzuri</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>novel_sns</string>
+	<string>tsuzuri</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -65,6 +65,29 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>開発中のサーバー（同じネットワークのMac）に接続するために使います。</string>
+	<key>GIDClientID</key>
+	<string>396718317713-48nmgne8mhce12ivqtajit6fco7bksdo.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>396718317713-pn89nr0mc059mecl8r3avgusm9j1vsqb.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<!-- Google ログインから戻るための URL スキーム（iOS クライアントIDを逆順にしたもの） -->
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.396718317713-48nmgne8mhce12ivqtajit6fco7bksdo</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

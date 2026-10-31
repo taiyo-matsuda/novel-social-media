@@ -1,5 +1,5 @@
-import 'package:novel_sns/services/api_client.dart';
-import 'package:novel_sns/services/token_store.dart';
+import 'package:tsuzuri/services/api_client.dart';
+import 'package:tsuzuri/services/token_store.dart';
 
 /// 小説を書く画面のテスト用。サーバーを呼ばずにメモリ上で作品を持つ
 class FakeWritingApi extends ApiClient {

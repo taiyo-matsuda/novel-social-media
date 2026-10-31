@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novel_sns/features/writing/new_work_screen.dart';
-import 'package:novel_sns/services/api_client.dart';
+import 'package:tsuzuri/features/writing/new_work_screen.dart';
+import 'package:tsuzuri/services/api_client.dart';
 
 import 'fake_writing_api.dart';
 

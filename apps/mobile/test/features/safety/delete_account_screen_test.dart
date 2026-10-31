@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novel_sns/features/auth/auth_controller.dart';
-import 'package:novel_sns/features/safety/delete_account_screen.dart';
-import 'package:novel_sns/widgets/app_button.dart';
+import 'package:tsuzuri/features/auth/auth_controller.dart';
+import 'package:tsuzuri/features/safety/delete_account_screen.dart';
+import 'package:tsuzuri/widgets/app_button.dart';
 
-import '../auth/auth_controller_test.dart' show FakeApi;
+import '../auth/auth_controller_test.dart' show FakeApi, FakeGoogle;
 
 void main() {
   late FakeApi api;
   late AuthController auth;
+  var usePassword = true;
 
   setUp(() async {
+    usePassword = true;
     api = FakeApi();
-    auth = AuthController(api);
+    auth = AuthController(api, FakeGoogle());
     await auth.submit(AuthMode.signIn, 'taro@example.com', 'password123');
   });
 
@@ -25,7 +27,10 @@ void main() {
             body: TextButton(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => DeleteAccountScreen(auth: auth),
+                  builder: (_) => DeleteAccountScreen(
+                    auth: auth,
+                    hasPassword: () async => usePassword,
+                  ),
                 ),
               ),
               child: const Text('ホーム'),
@@ -72,6 +77,25 @@ void main() {
     await submit(tester, 'password123');
     expect(auth.user, isNull);
     expect(find.text('ホーム'), findsOneWidget);
+    expect(find.byType(DeleteAccountScreen), findsNothing);
+  });
+
+  testWidgets('Google の人はパスワード欄の代わりに案内を出し、Google で確かめて退会する', (tester) async {
+    usePassword = false;
+    await pump(tester);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.textContaining('Google のログイン画面が開きます'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(AppButton, '退会する'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, '退会する'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(auth.user, isNull);
     expect(find.byType(DeleteAccountScreen), findsNothing);
   });
 }

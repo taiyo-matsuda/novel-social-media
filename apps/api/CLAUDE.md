@@ -8,6 +8,7 @@ Cloudflare Workers で動く API。フレームワークは Hono、DB は Cloudf
 - ログインは `src/lib/auth.ts`（Better Auth）。`/api/auth/*` は Better Auth が処理する。ログインが必要な API には `requireUser` を付け、`c.get("userId")` で本人のIDを使う
 - **D1 には RLS がない。** 利用者のデータを読む・書くクエリは必ず userId で絞る。他人向けの API で `user` 表のメールアドレスを返さない
 - スマホアプリ（Flutter）は登録・ログインの応答の `set-auth-token` ヘッダーを保存し、`Authorization: Bearer <トークン>` で送ってくる（Better Auth の bearer プラグイン）。ブラウザで試すときは `TRUSTED_ORIGINS` のオリジンだけ CORS を許可する
+- Google ログインは ID トークン方式（`/api/auth/sign-in/social`）。`GOOGLE_CLIENT_IDS` に Web・iOS・Android のクライアントIDをカンマ区切りで入れる。空なら無効。テストでは `createApp({ auth: { verifyGoogleIdToken } })` で署名確認を差し替える
 - パスワードのハッシュは `src/lib/password.ts`（PBKDF2）。Better Auth 標準の scrypt は Workers の無料枠のCPU時間を超えるので使わない
 - DBを使う処理のテストは `src/test/fake-d1.ts`（Node 標準の SQLite でマイグレーションを流した D1 の代わり）を使う。`src/app.test.ts` のように `app.request()` で API ごと試せる
 - 秘密情報は `wrangler.jsonc` に書かない。ローカルは `.dev.vars`（`.dev.vars.example` をコピー）、本番は `wrangler secret put`

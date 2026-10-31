@@ -1,4 +1,4 @@
-import 'package:novel_sns/services/api_client.dart';
+import 'package:tsuzuri/services/api_client.dart';
 
 import '../writing/fake_writing_api.dart';
 

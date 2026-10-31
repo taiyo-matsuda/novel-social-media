@@ -5,6 +5,10 @@ export type Env = {
   BETTER_AUTH_URL: string;
   /** ブラウザから呼んでよい開発用オリジン（カンマ区切り） */
   TRUSTED_ORIGINS?: string;
+  /** Google ログインで認めるクライアントID（Web・iOS・Android をカンマ区切り）。空なら Google ログインは無効 */
+  GOOGLE_CLIENT_IDS?: string;
+  /** Web クライアントのシークレット。ID トークンでのログインだけなら不要 */
+  GOOGLE_CLIENT_SECRET?: string;
   /** 空ならAIはフェイクで動く */
   ANTHROPIC_API_KEY?: string;
   ANTHROPIC_MODEL?: string;

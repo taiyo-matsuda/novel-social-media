@@ -29,3 +29,5 @@ String authErrorMessage({String? code, int? status}) {
   }
   return 'うまくいきませんでした。通信状態を確かめて、もう一度お試しください。';
 }
+
+const googleErrorMessage = 'Googleでログインできませんでした。通信状態を確かめて、もう一度お試しください。';

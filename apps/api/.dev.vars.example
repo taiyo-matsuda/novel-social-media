@@ -7,5 +7,8 @@ BETTER_AUTH_URL=http://localhost:8787
 # アプリをブラウザで試すときの開発サーバー（カンマ区切り）
 TRUSTED_ORIGINS=http://localhost:8081
 
+# Google ログインのクライアントID は wrangler.jsonc の vars に入っている。手元で変えたいときだけ上書きする
+# GOOGLE_CLIENT_IDS=
+
 # Claude API（https://console.anthropic.com/ で発行）。空ならAIはフェイクで動く
 ANTHROPIC_API_KEY=

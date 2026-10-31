@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:novel_sns/services/api_client.dart';
-import 'package:novel_sns/services/token_store.dart';
+import 'package:tsuzuri/services/api_client.dart';
+import 'package:tsuzuri/services/token_store.dart';
 
 const base = 'http://api.test';
 const user = {'id': 'u1', 'email': 'taro@example.com', 'name': '読者'};
@@ -74,6 +74,22 @@ void main() {
         ),
       );
       expect(tokens.token, isNull);
+    });
+
+    test('Google の ID トークンを sign-in/social に送ってログインする', () async {
+      final api = clientWith(
+        (_) async => jsonResponse(
+          {'redirect': false, 'token': 'raw', 'user': user},
+          headers: {'set-auth-token': 'signed.token'},
+        ),
+      );
+      await api.signInWithGoogle('google-id-token');
+      expect(sent.single.url.path, '/api/auth/sign-in/social');
+      expect(jsonDecode(sent.single.body), {
+        'provider': 'google',
+        'idToken': {'token': 'google-id-token'},
+      });
+      expect(tokens.token, 'signed.token');
     });
 
     test('トークンがなければサーバーに聞かずに未ログイン', () async {
@@ -335,7 +351,7 @@ void main() {
             : jsonResponse({'success': true, 'message': 'User deleted'}),
       );
       await expectLater(
-        api.deleteAccount('wrong'),
+        api.deleteAccount(password: 'wrong'),
         throwsA(
           isA<ApiException>().having((e) => e.code, 'code', 'INVALID_PASSWORD'),
         ),
@@ -343,11 +359,36 @@ void main() {
       expect(tokens.token, 'signed.token');
 
       fail = false;
-      await api.deleteAccount('password123');
+      await api.deleteAccount(password: 'password123');
       expect(sent.last.url.path, '/api/auth/delete-user');
       expect(sent.last.headers['Authorization'], 'Bearer signed.token');
       expect(jsonDecode(sent.last.body), {'password': 'password123'});
       expect(tokens.token, isNull);
+    });
+
+    test('パスワードなしの退会は空の本文で送る（Google の人がログインし直した直後）', () async {
+      tokens.token = 'signed.token';
+      final api = clientWith(
+        (_) async => jsonResponse({'success': true, 'message': 'User deleted'}),
+      );
+      await api.deleteAccount();
+      expect(jsonDecode(sent.single.body), <String, dynamic>{});
+      expect(tokens.token, isNull);
+    });
+
+    test('パスワードでログインできるかをアカウント一覧から判断する', () async {
+      tokens.token = 'signed.token';
+      var accounts = [
+        {'providerId': 'google'},
+      ];
+      final api = clientWith((_) async => jsonResponse(accounts));
+      expect(await api.hasPassword(), isFalse);
+      accounts = [
+        {'providerId': 'google'},
+        {'providerId': 'credential'},
+      ];
+      expect(await api.hasPassword(), isTrue);
+      expect(sent.last.url.path, '/api/auth/list-accounts');
     });
   });
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novel_sns/features/writing/work_screen.dart';
+import 'package:tsuzuri/features/writing/work_screen.dart';
 
 import 'fake_writing_api.dart';
 

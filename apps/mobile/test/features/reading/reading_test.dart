@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novel_sns/features/reading/reading.dart';
-import 'package:novel_sns/services/api_client.dart';
+import 'package:tsuzuri/features/reading/reading.dart';
+import 'package:tsuzuri/services/api_client.dart';
 
 PublicWorkSummary summary({int readers = 0, int likes = 0}) =>
     PublicWorkSummary(

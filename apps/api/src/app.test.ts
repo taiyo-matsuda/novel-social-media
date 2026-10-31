@@ -128,6 +128,132 @@ describe("ログイン", () => {
   });
 });
 
+describe("Google でログイン", () => {
+  const WEB_CLIENT_ID = "web.apps.googleusercontent.com";
+
+  /** 署名は確かめない（verifyGoogleIdToken で差し替える）ので、中身だけの ID トークンを作る */
+  function fakeIdToken(claims: Record<string, unknown>) {
+    const encode = (o: unknown) =>
+      Buffer.from(JSON.stringify(o)).toString("base64url");
+    return `${encode({ alg: "RS256", kid: "test" })}.${encode(claims)}.sig`;
+  }
+
+  const hanakoToken = fakeIdToken({
+    iss: "https://accounts.google.com",
+    aud: WEB_CLIENT_ID,
+    sub: "google-user-1",
+    email: "hanako@gmail.com",
+    email_verified: true,
+    name: "花子",
+    picture: "https://example.com/a.png",
+  });
+
+  function googleApp(valid: boolean) {
+    env.GOOGLE_CLIENT_IDS = `${WEB_CLIENT_ID}, ios.apps.googleusercontent.com`;
+    return createApp({
+      createGenerator: () => generator,
+      auth: { verifyGoogleIdToken: async () => valid },
+    });
+  }
+
+  function signInWithGoogle(
+    target: ReturnType<typeof createApp>,
+    token: string,
+  ) {
+    return target.request(
+      `${BASE}/api/auth/sign-in/social`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "google", idToken: { token } }),
+      },
+      env,
+    );
+  }
+
+  it("アプリが送った ID トークンでログインでき、トークンで API を使える", async () => {
+    const target = googleApp(true);
+    const res = await signInWithGoogle(target, hanakoToken);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      user: { email: string; name: string };
+    };
+    expect(body.user).toMatchObject({
+      email: "hanako@gmail.com",
+      name: "花子",
+    });
+
+    const token = res.headers.get("set-auth-token");
+    expect(token).toBeTruthy();
+    const choices = await target.request(
+      `${BASE}/api/opening-choices`,
+      { headers: { Authorization: `Bearer ${token}` } },
+      env,
+    );
+    expect(choices.status).toBe(200);
+  });
+
+  it("2回目のログインでは同じ利用者になる", async () => {
+    const target = googleApp(true);
+    const first = (await (
+      await signInWithGoogle(target, hanakoToken)
+    ).json()) as {
+      user: { id: string };
+    };
+    const second = (await (
+      await signInWithGoogle(target, hanakoToken)
+    ).json()) as { user: { id: string } };
+    expect(second.user.id).toBe(first.user.id);
+  });
+
+  it("Google の人はパスワードなしで、ログインし直した直後なら退会できる", async () => {
+    const target = googleApp(true);
+    const res = await signInWithGoogle(target, hanakoToken);
+    const bearer = {
+      Authorization: `Bearer ${res.headers.get("set-auth-token")}`,
+    };
+    const accounts = (await (
+      await target.request(
+        `${BASE}/api/auth/list-accounts`,
+        { headers: bearer },
+        env,
+      )
+    ).json()) as { providerId: string }[];
+    expect(accounts.map((a) => a.providerId)).toEqual(["google"]);
+
+    const deleted = await target.request(
+      `${BASE}/api/auth/delete-user`,
+      {
+        method: "POST",
+        headers: { ...bearer, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
+    expect(deleted.status).toBe(200);
+    expect(
+      (
+        await target.request(
+          `${BASE}/api/opening-choices`,
+          { headers: bearer },
+          env,
+        )
+      ).status,
+    ).toBe(401);
+  });
+
+  it("署名が確かめられない ID トークンは弾く", async () => {
+    const res = await signInWithGoogle(googleApp(false), hanakoToken);
+    expect(res.status).toBe(401);
+    expect(res.headers.get("set-auth-token")).toBeNull();
+  });
+
+  it("GOOGLE_CLIENT_IDS が空なら Google ログインは使えない", async () => {
+    const res = await signInWithGoogle(app, hanakoToken);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+});
+
 describe("冒頭文", () => {
   it("冒頭文は表示順に返る", async () => {
     const res = await request("/api/openings");

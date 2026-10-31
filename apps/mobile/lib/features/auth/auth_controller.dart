@@ -1,20 +1,25 @@
 import 'package:flutter/foundation.dart';
 
 import '../../services/api_client.dart';
+import '../../services/google_sign_in.dart';
 import '../openings/deck.dart';
 import '../safety/safety.dart';
 import 'validation.dart';
 
 enum AuthMode { signUp, signIn }
 
+/// 退会の確認を途中でやめたときの戻り値
+const deleteCanceled = '';
+
 /// 表示名の初期値。あとでプロフィール画面から変えられるようにする
 const defaultName = '読者';
 
 /// ログイン状態と「好みを伝え終えたか」を持つ。どの画面を見せるかは main.dart がこれを見て決める。
 class AuthController extends ChangeNotifier {
-  AuthController(this._api);
+  AuthController(this._api, this._google);
 
   final ApiClient _api;
+  final GoogleIdTokenSource _google;
 
   /// 起動時にログイン状態を読み込み終えたか
   bool initialized = false;
@@ -36,7 +41,24 @@ class AuthController extends ChangeNotifier {
     if (user != null) await refreshOnboarded();
   }
 
-  /// 登録またはログインする。失敗したら画面に出す文を返す
+  /// Google でログインする（初めてなら登録される）。失敗したら画面に出す文を返す。途中でやめたら null
+  Future<String?> signInWithGoogle() async {
+    try {
+      final idToken = await _google.signIn();
+      if (idToken == null) return null;
+      user = await _api.signInWithGoogle(idToken);
+    } on ApiException catch (e) {
+      return e.status == 429
+          ? authErrorMessage(status: 429)
+          : googleErrorMessage;
+    } catch (_) {
+      return googleErrorMessage;
+    }
+    await _afterSignIn();
+    return null;
+  }
+
+  /// メールアドレスで登録またはログインする。失敗したら画面に出す文を返す
   Future<String?> submit(AuthMode mode, String email, String password) async {
     final normalized = normalizeEmail(email);
     try {
@@ -52,10 +74,14 @@ class AuthController extends ChangeNotifier {
     } catch (_) {
       return authErrorMessage();
     }
+    await _afterSignIn();
+    return null;
+  }
+
+  Future<void> _afterSignIn() async {
     onboarded = null;
     notifyListeners();
     await refreshOnboarded();
-    return null;
   }
 
   /// 冒頭文を選び終えたあとに呼び、onboarded を取り直す
@@ -81,21 +107,54 @@ class AuthController extends ChangeNotifier {
     } catch (_) {
       // 端末のトークンは消えているので、画面はログアウトした状態にする
     }
+    try {
+      // 次回、別の Google アカウントを選べるようにする
+      await _google.signOut();
+    } catch (_) {}
     user = null;
     onboarded = null;
     notifyListeners();
   }
 
-  /// 退会する。失敗したら画面に出す文を返し、成功したらログアウトした状態にする
+  /// パスワードで退会する。失敗したら画面に出す文を返し、成功したらログアウトした状態にする
   Future<String?> deleteAccount(String password) async {
     try {
-      await _api.deleteAccount(password);
+      await _api.deleteAccount(password: password);
     } catch (e) {
       return deleteAccountErrorMessage(e);
     }
+    await _afterDelete();
+    return null;
+  }
+
+  /// Google でログインし直して本人か確かめてから退会する（パスワードのない人向け）。
+  /// やめたら [deleteCanceled] を返す（画面には出さない）
+  Future<String?> deleteAccountWithGoogle() async {
+    final userId = user?.id;
+    try {
+      final idToken = await _google.signIn();
+      if (idToken == null) return deleteCanceled;
+      // ログインし直すと新しいログイン状態になり、パスワードなしで退会できる
+      final again = await _api.signInWithGoogle(idToken);
+      if (again.id != userId) {
+        // 別の Google アカウントを選んだ。その人を消さないよう、ここで止める
+        await signOut();
+        return 'ログイン中のアカウントとは別の Google アカウントが選ばれたため、退会しませんでした。';
+      }
+      await _api.deleteAccount();
+    } catch (e) {
+      return deleteAccountErrorMessage(e);
+    }
+    await _afterDelete();
+    return null;
+  }
+
+  Future<void> _afterDelete() async {
+    try {
+      await _google.signOut();
+    } catch (_) {}
     user = null;
     onboarded = null;
     notifyListeners();
-    return null;
   }
 }

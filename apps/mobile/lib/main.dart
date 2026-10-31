@@ -6,11 +6,12 @@ import 'features/home/main_shell.dart';
 import 'features/openings/openings_screen.dart';
 import 'services/api_client.dart';
 import 'services/config.dart';
+import 'services/google_sign_in.dart';
 import 'services/token_store.dart';
 
 void main() {
   final api = ApiClient(baseUrl: apiUrl, tokens: SecureTokenStore());
-  final auth = AuthController(api)..restore();
+  final auth = AuthController(api, PluginGoogleIdTokenSource())..restore();
   runApp(NovelApp(api: api, auth: auth));
 }
 
@@ -24,7 +25,7 @@ class NovelApp extends StatelessWidget {
   Widget build(BuildContext context) {
     const seed = Color(0xFF3D5A80);
     return MaterialApp(
-      title: 'AI小説SNS',
+      title: 'Tsuzuri',
       theme: ThemeData(colorSchemeSeed: seed),
       darkTheme: ThemeData(colorSchemeSeed: seed, brightness: Brightness.dark),
       home: ListenableBuilder(

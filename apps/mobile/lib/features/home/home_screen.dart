@@ -60,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final auth = widget.auth;
     return Scaffold(
-      appBar: AppBar(title: const Text('AI小説SNS')),
+      appBar: AppBar(title: const Text('Tsuzuri')),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -112,7 +112,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => DeleteAccountScreen(auth: auth),
+                    builder: (_) => DeleteAccountScreen(
+                      auth: auth,
+                      hasPassword: widget.api.hasPassword,
+                    ),
                   ),
                 ),
                 child: const Text('アカウントを削除'),

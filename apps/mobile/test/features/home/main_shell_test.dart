@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novel_sns/features/auth/auth_controller.dart';
-import 'package:novel_sns/features/home/main_shell.dart';
+import 'package:tsuzuri/features/auth/auth_controller.dart';
+
+import '../auth/auth_controller_test.dart' show FakeGoogle;
+
+import 'package:tsuzuri/features/home/main_shell.dart';
 
 import '../reading/fake_reading_api.dart';
 
@@ -12,7 +15,7 @@ void main() {
       MaterialApp(
         home: MainShell(
           api: api,
-          auth: AuthController(api),
+          auth: AuthController(api, FakeGoogle()),
           onChooseAgain: () {},
         ),
       ),
