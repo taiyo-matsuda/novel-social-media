@@ -1,7 +1,8 @@
 // Cloudflare Workers の設定。秘密情報はここに書かず、ローカルは .dev.vars、本番は `wrangler secret put` で入れる
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "novel-api",
+  // 本番の URL は https://tsuzuri-api.<workers.dev のサブドメイン>.workers.dev になる
+  "name": "tsuzuri-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-20",
   "compatibility_flags": ["nodejs_compat"],
@@ -9,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "novel-db",
-      // `wrangler d1 create novel-db` で表示されるIDに置き換える（ローカル開発はこのままで動く）
+      // `wrangler d1 create novel-db` で表示されるIDに置き換える（ローカル開発はこのままで動く）。秘密ではない
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations",
     },
