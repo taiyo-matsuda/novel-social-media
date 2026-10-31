@@ -4,6 +4,7 @@
   "scripts": {
     "dev:api": "pnpm --filter @novel/api dev",
     "dev:mobile": "cd apps/mobile && flutter run",
+    "deploy:api": "pnpm --filter @novel/api run deploy",
     "build": "pnpm -r --if-present build",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present typecheck",

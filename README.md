@@ -21,7 +21,7 @@ open -a Simulator   # iPhone シミュレーターを起動
 pnpm dev:mobile   # アプリ（flutter run。シミュレーターで開く）
 ```
 
-サーバーとDBは [Cloudflare](https://www.cloudflare.com/)（Workers と D1）、ログインは [Better Auth](https://www.better-auth.com/) を使います。本番に出す手順は [apps/api/CLAUDE.md](apps/api/CLAUDE.md) を参照してください。
+サーバーとDBは [Cloudflare](https://www.cloudflare.com/)（Workers と D1）、ログインは [Better Auth](https://www.better-auth.com/) を使います。本番に出す手順は [docs/deploy.md](docs/deploy.md) を参照してください。
 
 ## 開発
 

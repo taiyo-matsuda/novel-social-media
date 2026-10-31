@@ -16,17 +16,13 @@ Cloudflare Workers で動く API。フレームワークは Hono、DB は Cloudf
 
 ## コマンド（このフォルダで実行）
 
-| 目的                         | コマンド                            |
-| ---------------------------- | ----------------------------------- |
-| 開発サーバー                 | `pnpm dev`（http://localhost:8787） |
-| ローカルDBにマイグレーション | `pnpm db:migrate:local`             |
-| 本番DBにマイグレーション     | `pnpm db:migrate:remote`            |
-| 本番に出す                   | `pnpm deploy`                       |
+| 目的                               | コマンド                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| 開発サーバー                       | `pnpm dev`（http://localhost:8787）                                          |
+| ローカルDBにマイグレーション       | `pnpm db:migrate:local`                                                      |
+| 本番DBにマイグレーション           | `pnpm db:migrate:remote`                                                     |
+| 本番に出す（マイグレーション込み） | `pnpm run deploy`（`pnpm deploy` は pnpm 自身のコマンドなので run を付ける） |
 
-## 本番に出す手順（初回）
+## 本番に出す手順
 
-1. `pnpm exec wrangler login`
-2. `pnpm exec wrangler d1 create novel-db` を実行し、表示された `database_id` を `wrangler.jsonc` に書く
-3. `pnpm db:migrate:remote`
-4. `pnpm exec wrangler secret put BETTER_AUTH_SECRET`（`openssl rand -base64 32` で作った値）、同様に `BETTER_AUTH_URL`（Workers のURL）と `ANTHROPIC_API_KEY`
-5. `pnpm deploy`。スマホアプリは `flutter build ios --dart-define=API_URL=<そのURL>` のように URL を渡してビルドする
+[docs/deploy.md](../../docs/deploy.md) に初回の手順（wrangler login → D1 作成 → `pnpm run deploy` → `wrangler secret put`）と、アプリを本番につなぐ方法をまとめている。Worker の名前は `tsuzuri-api`。
