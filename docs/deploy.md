@@ -24,15 +24,9 @@ pnpm exec wrangler login
 
 ブラウザが開くので「Allow」を押す。
 
-### 3. DB を作る
+### 3. DB を作る（済み）
 
-```sh
-pnpm exec wrangler d1 create novel-db
-```
-
-- 「Would you like Wrangler to add it on your behalf?」と聞かれたら **No** を選ぶ（設定はすでにある）
-- 表示された `database_id`（`xxxxxxxx-xxxx-...` の形）を、`apps/api/wrangler.jsonc` の `"database_id": "00000000-0000-0000-0000-000000000000"` の 0 の部分と置き換える
-- このIDは秘密ではない。リポジトリにも入れておくと、次からこの手順が要らない
+本番の DB（`novel-db`）は作成済みで、ID は `apps/api/wrangler.jsonc` に入っている。別の Cloudflare アカウントに出し直すときだけ、`pnpm exec wrangler d1 create novel-db` を実行し（「add it on your behalf?」には **No**）、表示された `database_id` で `wrangler.jsonc` の ID を置き換える。
 
 ### 4. 出す
 

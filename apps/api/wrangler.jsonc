@@ -10,8 +10,8 @@
     {
       "binding": "DB",
       "database_name": "novel-db",
-      // `wrangler d1 create novel-db` で表示されるIDに置き換える（ローカル開発はこのままで動く）。秘密ではない
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // 本番の D1（`wrangler d1 create novel-db` で作成）。秘密ではない
+      "database_id": "5723bc1a-5c17-4287-a0da-94eb35b62230",
       "migrations_dir": "migrations",
     },
   ],
