@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tsuzuri/features/openings/deck.dart';
-import 'package:tsuzuri/features/openings/openings_screen.dart';
-import 'package:tsuzuri/services/api_client.dart';
-import 'package:tsuzuri/services/token_store.dart';
+import 'package:ballad/features/openings/deck.dart';
+import 'package:ballad/features/openings/openings_screen.dart';
+import 'package:ballad/services/api_client.dart';
+import 'package:ballad/services/token_store.dart';
 
 class FakeApi extends ApiClient {
   FakeApi() : super(baseUrl: 'http://api.test', tokens: MemoryTokenStore());

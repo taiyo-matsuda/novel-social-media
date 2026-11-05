@@ -36,7 +36,7 @@ pnpm run deploy
 
 - DB の表を作る（「Ok to proceed?」には `y`）→ サーバーを出す、の順に進む
 - 初めてだと workers.dev のサブドメイン（URL の一部になる名前）を聞かれる。好きな英小文字の名前を入れる
-- 最後に `https://tsuzuri-api.<サブドメイン>.workers.dev` が表示される。これが本番の URL
+- 最後に `https://ballad-api.<サブドメイン>.workers.dev` が表示される。これが本番の URL
 
 > `pnpm deploy`（run なし）は pnpm 自身の別のコマンドが動くので、必ず `pnpm run deploy` と打つ。
 
@@ -59,14 +59,14 @@ Google ログインのクライアントIDは `wrangler.jsonc` に入ってい�
 
 ### 6. 動いているか確かめる
 
-ブラウザで `https://tsuzuri-api.<サブドメイン>.workers.dev/api/openings` を開く。冒頭文の一覧（JSON）が出れば成功。
+ブラウザで `https://ballad-api.<サブドメイン>.workers.dev/api/openings` を開く。冒頭文の一覧（JSON）が出れば成功。
 
 ### 7. iPhone のアプリを本番につなぐ
 
 ```sh
 cd ../mobile
 flutter devices   # iPhone の端末IDを調べる
-flutter run --release -d <端末ID> --dart-define=API_URL=https://tsuzuri-api.<サブドメイン>.workers.dev
+flutter run --release -d <端末ID> --dart-define=API_URL=https://ballad-api.<サブドメイン>.workers.dev
 ```
 
 - これで Mac のサーバーを止めても、テザリングなしで使える
@@ -82,6 +82,32 @@ pnpm deploy:api
 ```
 
 新しいマイグレーションがあれば本番 DB に当ててから出す。
+
+## Worker の名前を `tsuzuri-api` から `ballad-api` に付け替える（アプリ名変更にともなう1回限りの作業）
+
+アプリ名を Ballad に変えたとき、`wrangler.jsonc` の `name` も `ballad-api` にした。Wrangler は名前が違うと**別の Worker として新しく作る**ので、旧名で公開済みなら次の手順で付け替える。秘密の値は Worker ごとに持つため、入れ直しが要る。DB（D1）は `wrangler.jsonc` の ID で結びつくので、そのまま新しい Worker から使える。
+
+```sh
+cd apps/api
+
+# 1. 新しい名前で出す。最後に https://ballad-api.<サブドメイン>.workers.dev が表示される
+pnpm run deploy
+
+# 2. 秘密の値を新しい Worker に入れ直す
+openssl rand -base64 32 | pnpm exec wrangler secret put BETTER_AUTH_SECRET
+pnpm exec wrangler secret put BETTER_AUTH_URL      # 1 で表示された新しい URL を貼る
+pnpm exec wrangler secret put ANTHROPIC_API_KEY    # Claude API のキーを貼る
+
+# 3. 動くか確かめる
+#    ブラウザで https://ballad-api.<サブドメイン>.workers.dev/api/openings を開く
+
+# 4. 旧 Worker を消す（URL が2つ生きていると混乱するため）
+pnpm exec wrangler delete --name tsuzuri-api
+```
+
+- `BETTER_AUTH_SECRET` を新しくするので、旧 URL でログインしていた端末はログインし直しになる
+- iPhone のアプリは 7 の手順を新しい URL（`--dart-define=API_URL=https://ballad-api.<サブドメイン>.workers.dev`）でもう一度実行する
+- Google ログインのクライアントIDとバンドルIDは変えていないので、Google Cloud 側の作業はない
 
 ## 困ったとき
 

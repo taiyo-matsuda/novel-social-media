@@ -60,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final auth = widget.auth;
     return Scaffold(
-      appBar: AppBar(title: const Text('Tsuzuri')),
+      appBar: AppBar(title: const Text('Ballad')),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,

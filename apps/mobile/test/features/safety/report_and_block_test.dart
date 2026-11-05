@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tsuzuri/features/reading/public_works_screen.dart';
-import 'package:tsuzuri/services/api_client.dart';
+import 'package:ballad/features/reading/public_works_screen.dart';
+import 'package:ballad/services/api_client.dart';
 
 import '../reading/fake_reading_api.dart';
 

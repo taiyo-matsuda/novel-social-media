@@ -1,8 +1,8 @@
 // Cloudflare Workers の設定。秘密情報はここに書かず、ローカルは .dev.vars、本番は `wrangler secret put` で入れる
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // 本番の URL は https://tsuzuri-api.<workers.dev のサブドメイン>.workers.dev になる
-  "name": "tsuzuri-api",
+  // 本番の URL は https://ballad-api.<workers.dev のサブドメイン>.workers.dev になる
+  "name": "ballad-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-20",
   "compatibility_flags": ["nodejs_compat"],

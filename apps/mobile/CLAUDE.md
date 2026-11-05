@@ -15,7 +15,7 @@ test/                 lib/ と同じ並びでテストを置く（*_test.dart）
 ## このアプリでのルール
 
 - サーバーの呼び出しは `lib/services/api_client.dart` にまとめる。型の正は `packages/core/src/api`（TypeScript）なので、API を変えたら両方を直す
-- ログインは主に Google（`lib/services/google_sign_in.dart` で端末上でログインし、ID トークンをサーバーへ送る）。クライアントIDは `lib/services/config.dart` の既定値（`--dart-define` で上書き可）。iOS は `ios/Runner/Info.plist` の `GIDClientID` と URL スキーム（iOS クライアントIDを逆順にしたもの）にも同じ値を入れる。バンドルIDは `com.taiyomatsuda.tsuzuri`（公開後は変えられない）
+- ログインは主に Google（`lib/services/google_sign_in.dart` で端末上でログインし、ID トークンをサーバーへ送る）。クライアントIDは `lib/services/config.dart` の既定値（`--dart-define` で上書き可）。iOS は `ios/Runner/Info.plist` の `GIDClientID` と URL スキーム（iOS クライアントIDを逆順にしたもの）にも同じ値を入れる。バンドルID（iOS）と applicationId（Android）は旧名のまま `com.taiyomatsuda.tsuzuri`。Google のクライアントIDがこの値に紐づいているので、アプリ名を Ballad に変えたときも据え置いた（[docs/decisions/0006-rename-to-ballad.md](../../docs/decisions/0006-rename-to-ballad.md)）
 - ログイン状態は Better Auth の bearer プラグイン。トークンは `TokenStore`（`flutter_secure_storage`）に保存し、`Authorization: Bearer` で送る。トークンをログに出さない
 - テストではサーバーを呼ばない。`ApiClient` に `package:http/testing.dart` の `MockClient` を渡すか、`ApiClient` を継承した偽物を使う（`test/features/auth/auth_controller_test.dart`）
 - 画面の状態は `ChangeNotifier`（`AuthController`）と `StatefulWidget` で持つ。状態管理のパッケージは必要になるまで入れない
@@ -37,6 +37,6 @@ test/                 lib/ と同じ並びでテストを置く（*_test.dart）
 3. iPhone に入れる：`flutter run --release -d <端末ID> --dart-define=API_URL=http://<MacのIP>:8787`（端末IDは `flutter devices`）。デバッグ版はワイヤレスだと起動できないことがあるので release で入れる
 4. 初回だけ iPhone の「設定 > 一般 > VPNとデバイス管理」で開発者（Apple Development）を「信頼」する。無料の Apple ID で署名したアプリは7日で開けなくなるので、そのときは 3 をやり直す
 
-本番のサーバーにつなぐときは `API_URL=https://tsuzuri-api.<サブドメイン>.workers.dev` を渡す（[docs/deploy.md](../../docs/deploy.md)）。
+本番のサーバーにつなぐときは `API_URL=https://ballad-api.<サブドメイン>.workers.dev` を渡す（[docs/deploy.md](../../docs/deploy.md)）。
 
 開発中は Mac の http サーバーにつなぐため、iOS は `NSAllowsLocalNetworking`、Android はデバッグ版だけ http を許可している。本番の API は https なので影響しない。

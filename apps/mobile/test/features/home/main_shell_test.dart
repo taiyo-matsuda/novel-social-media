@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tsuzuri/features/auth/auth_controller.dart';
+import 'package:ballad/features/auth/auth_controller.dart';
 
 import '../auth/auth_controller_test.dart' show FakeGoogle;
 
-import 'package:tsuzuri/features/home/main_shell.dart';
+import 'package:ballad/features/home/main_shell.dart';
 
 import '../reading/fake_reading_api.dart';
 

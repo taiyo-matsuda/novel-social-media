@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tsuzuri/features/writing/plot_request.dart';
-import 'package:tsuzuri/services/api_client.dart';
+import 'package:ballad/features/writing/plot_request.dart';
+import 'package:ballad/services/api_client.dart';
 
 void main() {
   group('appendSuggestion', () {
