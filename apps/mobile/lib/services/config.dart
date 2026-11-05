@@ -9,7 +9,7 @@ const apiUrl = String.fromEnvironment(
 /// Google ログインの iOS 用クライアントID（Google Cloud の Google Auth Platform で作った値。秘密ではない）
 const googleIosClientId = String.fromEnvironment(
   'GOOGLE_IOS_CLIENT_ID',
-  defaultValue: '396718317713-48nmgne8mhce12ivqtajit6fco7bksdo.apps.googleusercontent.com',
+  defaultValue: '396718317713-svnqk1ih5p8nml5ju4vkbv9tmqksv1t0.apps.googleusercontent.com',
 );
 
 /// サーバーが確かめる ID トークンの宛先（Web 用クライアントID）。サーバーの GOOGLE_CLIENT_IDS にも入れる

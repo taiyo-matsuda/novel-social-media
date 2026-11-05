@@ -74,7 +74,7 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>開発中のサーバー（同じネットワークのMac）に接続するために使います。</string>
 	<key>GIDClientID</key>
-	<string>396718317713-48nmgne8mhce12ivqtajit6fco7bksdo.apps.googleusercontent.com</string>
+	<string>396718317713-svnqk1ih5p8nml5ju4vkbv9tmqksv1t0.apps.googleusercontent.com</string>
 	<key>GIDServerClientID</key>
 	<string>396718317713-pn89nr0mc059mecl8r3avgusm9j1vsqb.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
@@ -85,7 +85,7 @@
 			<!-- Google ログインから戻るための URL スキーム（iOS クライアントIDを逆順にしたもの） -->
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.396718317713-48nmgne8mhce12ivqtajit6fco7bksdo</string>
+				<string>com.googleusercontent.apps.396718317713-svnqk1ih5p8nml5ju4vkbv9tmqksv1t0</string>
 			</array>
 		</dict>
 	</array>
