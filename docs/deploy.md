@@ -107,7 +107,7 @@ pnpm exec wrangler delete --name tsuzuri-api
 
 - `BETTER_AUTH_SECRET` を新しくするので、旧 URL でログインしていた端末はログインし直しになる
 - iPhone のアプリは 7 の手順を新しい URL（`--dart-define=API_URL=https://ballad-api.<サブドメイン>.workers.dev`）でもう一度実行する
-- Google ログインのクライアントIDとバンドルIDは変えていないので、Google Cloud 側の作業はない
+- バンドルIDも `com.taiyomatsuda.ballad` に変えたので、Google Cloud で iOS 用クライアントIDを作り直す（[docs/decisions/0006-rename-to-ballad.md](decisions/0006-rename-to-ballad.md)）
 
 ## 困ったとき
 
