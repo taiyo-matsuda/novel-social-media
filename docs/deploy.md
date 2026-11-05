@@ -105,6 +105,11 @@ pnpm exec wrangler secret put ANTHROPIC_API_KEY    # Claude API のキーを貼�
 pnpm exec wrangler delete --name tsuzuri-api
 ```
 
+付け替えのあとに残っている ToDo：
+
+- [ ] iPhone に新しいアプリ（`com.taiyomatsuda.ballad`）を入れて Google ログインできるのを確かめたら、Google Cloud の「クライアント」一覧から**旧 iOS クライアント**（バンドルID `com.taiyomatsuda.tsuzuri`、IDの末尾 `48nmgne8…`）を削除する。先に消すと旧アプリでログインできなくなる
+- [ ] iPhone から旧アプリ（Tsuzuri）を手で消す
+
 - `BETTER_AUTH_SECRET` を新しくするので、旧 URL でログインしていた端末はログインし直しになる
 - iPhone のアプリは 7 の手順を新しい URL（`--dart-define=API_URL=https://ballad-api.<サブドメイン>.workers.dev`）でもう一度実行する
 - バンドルIDも `com.taiyomatsuda.ballad` に変えたので、Google Cloud で iOS 用クライアントIDを作り直す（[docs/decisions/0006-rename-to-ballad.md](decisions/0006-rename-to-ballad.md)）
