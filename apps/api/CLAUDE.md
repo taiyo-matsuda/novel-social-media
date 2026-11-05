@@ -25,4 +25,4 @@ Cloudflare Workers で動く API。フレームワークは Hono、DB は Cloudf
 
 ## 本番に出す手順
 
-[docs/deploy.md](../../docs/deploy.md) に初回の手順（wrangler login → D1 作成 → `pnpm run deploy` → `wrangler secret put`）と、アプリを本番につなぐ方法をまとめている。Worker の名前は `tsuzuri-api`。
+[docs/deploy.md](../../docs/deploy.md) に初回の手順（wrangler login → D1 作成 → `pnpm run deploy` → `wrangler secret put`）と、アプリを本番につなぐ方法をまとめている。Worker の名前は `ballad-api`。

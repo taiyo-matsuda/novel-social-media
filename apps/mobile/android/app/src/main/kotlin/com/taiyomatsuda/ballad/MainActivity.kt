@@ -1,4 +1,4 @@
-package com.taiyomatsuda.tsuzuri
+package com.taiyomatsuda.ballad
 
 import io.flutter.embedding.android.FlutterActivity
 

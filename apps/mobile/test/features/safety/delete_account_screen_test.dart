@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tsuzuri/features/auth/auth_controller.dart';
-import 'package:tsuzuri/features/safety/delete_account_screen.dart';
-import 'package:tsuzuri/widgets/app_button.dart';
+import 'package:ballad/features/auth/auth_controller.dart';
+import 'package:ballad/features/safety/delete_account_screen.dart';
+import 'package:ballad/widgets/app_button.dart';
 
 import '../auth/auth_controller_test.dart' show FakeApi, FakeGoogle;
 

@@ -13,7 +13,7 @@ class SecureTokenStore implements TokenStore {
   SecureTokenStore([FlutterSecureStorage? storage])
     : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _key = 'tsuzuri.session_token';
+  static const _key = 'ballad.session_token';
   final FlutterSecureStorage _storage;
 
   @override

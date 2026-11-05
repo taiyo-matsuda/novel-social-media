@@ -1,8 +1,8 @@
 // Cloudflare Workers の設定。秘密情報はここに書かず、ローカルは .dev.vars、本番は `wrangler secret put` で入れる
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // 本番の URL は https://tsuzuri-api.<workers.dev のサブドメイン>.workers.dev になる
-  "name": "tsuzuri-api",
+  // 本番の URL は https://ballad-api.<workers.dev のサブドメイン>.workers.dev になる
+  "name": "ballad-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-20",
   "compatibility_flags": ["nodejs_compat"],
@@ -18,6 +18,6 @@
   "vars": {
     "ANTHROPIC_MODEL": "claude-opus-5-5",
     // Google ログインで認めるクライアントID（Web, iOS）。秘密ではない
-    "GOOGLE_CLIENT_IDS": "396718317713-pn89nr0mc059mecl8r3avgusm9j1vsqb.apps.googleusercontent.com,396718317713-48nmgne8mhce12ivqtajit6fco7bksdo.apps.googleusercontent.com",
+    "GOOGLE_CLIENT_IDS": "396718317713-pn89nr0mc059mecl8r3avgusm9j1vsqb.apps.googleusercontent.com,396718317713-svnqk1ih5p8nml5ju4vkbv9tmqksv1t0.apps.googleusercontent.com",
   },
 }

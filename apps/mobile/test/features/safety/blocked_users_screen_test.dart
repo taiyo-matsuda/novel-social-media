@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tsuzuri/features/safety/blocked_users_screen.dart';
+import 'package:ballad/features/safety/blocked_users_screen.dart';
 
 import '../reading/fake_reading_api.dart';
 

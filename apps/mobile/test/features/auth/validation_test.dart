@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tsuzuri/features/auth/validation.dart';
+import 'package:ballad/features/auth/validation.dart';
 
 void main() {
   test('メールアドレスは前後の空白を除いて小文字にする', () {

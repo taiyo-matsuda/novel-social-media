@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tsuzuri/features/auth/auth_controller.dart';
-import 'package:tsuzuri/features/auth/validation.dart';
-import 'package:tsuzuri/services/api_client.dart';
-import 'package:tsuzuri/services/google_sign_in.dart';
-import 'package:tsuzuri/services/token_store.dart';
+import 'package:ballad/features/auth/auth_controller.dart';
+import 'package:ballad/features/auth/validation.dart';
+import 'package:ballad/services/api_client.dart';
+import 'package:ballad/services/google_sign_in.dart';
+import 'package:ballad/services/token_store.dart';
 
 const taro = SessionUser(id: 'u1', email: 'taro@example.com', name: '読者');
 
