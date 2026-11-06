@@ -1,9 +1,11 @@
 import type { NovelGenerator } from "@novel/core/ai";
 import {
+  appealRequestSchema,
   generateChapterRequestSchema,
   openingIdSchema,
   recordReadRequestSchema,
   reportWorkRequestSchema,
+  rightsClaimRequestSchema,
   saveOpeningChoiceRequestSchema,
   setLikeRequestSchema,
   updateWorkRequestSchema,
@@ -21,6 +23,7 @@ import {
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
+import { z } from "zod";
 
 import { webOrigins, type Env } from "./env";
 import { d1ChapterStore } from "./features/generation/d1-chapter-store";
@@ -28,6 +31,14 @@ import {
   generateNextChapter,
   WorkNotFoundError,
 } from "./features/generation/generate-next-chapter";
+import { isAdminAuthorized } from "./features/moderation/admin-token";
+import { d1ModerationStore } from "./features/moderation/d1-moderation-store";
+import {
+  ADMIN_PAGE,
+  PAGE_HEADERS,
+  RIGHTS_PAGE,
+} from "./features/moderation/pages";
+import { opsMessage, type OpsEvent } from "./features/moderation/policy";
 import { d1OpeningsStore } from "./features/openings/d1-openings-store";
 import { d1PublicWorksStore } from "./features/public-works/d1-public-works-store";
 import { rankPublicWorks } from "./features/public-works/rank-public-works";
@@ -36,22 +47,56 @@ import { d1WorksStore } from "./features/works/d1-works-store";
 import { createNovelGenerator } from "./lib/ai";
 import { AiRefusalError } from "./lib/ai/claude";
 import { createAuth, type AuthDeps } from "./lib/auth";
+import { createNotifier, type Notifier } from "./lib/notify";
 
 type AppEnv = { Bindings: Env; Variables: { userId: string } };
 type OptionalUserEnv = { Bindings: Env; Variables: { userId: string | null } };
 
+const moderationActionSchema = z.object({
+  action: z.enum(["restore", "hide", "remove"]),
+});
+const rightsClaimIdSchema = z.coerce.number().int().positive();
+const updateRightsClaimSchema = z
+  .object({
+    workId: workIdSchema.nullable().optional(),
+    resolved: z.boolean().optional(),
+  })
+  .refine((v) => v.workId !== undefined || v.resolved !== undefined);
+
 /**
  * API の入口。ここには認証・入力検証・エラー変換だけを書き、処理は features/ に置く。
  * テストでは createGenerator を差し替えて Claude API を呼ばないようにする。
+ * createNotifier を差し替えると、運営への通知（Slack）を送らずに中身を確かめられる。
  */
 export function createApp(
   deps: {
     createGenerator?: (env: Env) => NovelGenerator;
     auth?: AuthDeps;
+    createNotifier?: (env: Env) => Notifier;
   } = {},
 ) {
   const createGenerator = deps.createGenerator ?? createNovelGenerator;
+  const notifierOf = deps.createNotifier ?? createNotifier;
   const app = new Hono<AppEnv>();
+
+  /** 運営に知らせる。応答を待たせないよう、Workers では返事の後に送る */
+  async function notifyOps(
+    c: {
+      env: Env;
+      req: { url: string };
+      executionCtx: { waitUntil(promise: Promise<unknown>): void };
+    },
+    event: OpsEvent,
+  ) {
+    const adminUrl = new URL("/admin", c.req.url).toString();
+    const sending = notifierOf(c.env)(opsMessage(event, adminUrl));
+    try {
+      c.executionCtx.waitUntil(sending);
+    } catch {
+      // テスト（executionCtx がない）では待つ
+      await sending;
+    }
+  }
 
   // スマホアプリはオリジンを持たないので CORS は関係ない。ブラウザで試すときの開発サーバーだけ許可する
   app.use(
@@ -182,6 +227,37 @@ export function createApp(
     return c.json(work);
   });
 
+  // 非表示・取り下げられた自分の作品に異議を出す
+  app.post("/api/works/:workId/appeals", requireUser, async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const body = appealRequestSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: "リクエストが不正です" }, 400);
+    const moderation = d1ModerationStore(c.env.DB);
+    const result = await moderation.appeal(
+      c.get("userId"),
+      workId.data,
+      body.data.body,
+    );
+    if (result === "not_found") {
+      return c.json({ error: "作品が見つかりません" }, 404);
+    }
+    if (result === "not_moderated") {
+      return c.json({ error: "この作品は非公開にされていません" }, 409);
+    }
+    if (result === "pending") {
+      return c.json({ error: "異議はすでに確認待ちです" }, 409);
+    }
+    await notifyOps(c, {
+      kind: "appeal",
+      workId: workId.data,
+      title: (await moderation.titleOf(workId.data)) ?? "",
+    });
+    return c.body(null, 204);
+  });
+
   // ---- みんなの作品 ----
   // 一覧（題名・作者名・数字）はログインなしでも見られる。本文はログイン必須
 
@@ -265,6 +341,16 @@ export function createApp(
     if (result === "own_work") {
       return c.json({ error: "自分の作品は通報できません" }, 403);
     }
+    const moderation = d1ModerationStore(c.env.DB);
+    const autoHidden = await moderation.hideIfReported(workId.data);
+    await notifyOps(c, {
+      kind: "report",
+      workId: workId.data,
+      title: (await moderation.titleOf(workId.data)) ?? "",
+      reason: body.data.reason,
+      detail: body.data.detail,
+      autoHidden,
+    });
     return c.body(null, 204);
   });
 
@@ -295,6 +381,104 @@ export function createApp(
     await d1SafetyStore(c.env.DB).unblock(c.get("userId"), target.data);
     return c.body(null, 204);
   });
+
+  // ---- 権利者の申し立て（Web のフォーム、ログイン不要） ----
+
+  app.get("/rights", (c) => c.body(RIGHTS_PAGE, 200, PAGE_HEADERS));
+
+  app.post("/api/rights-claims", async (c) => {
+    const body = rightsClaimRequestSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: "入力内容が不正です" }, 400);
+    await d1ModerationStore(c.env.DB).createRightsClaim(body.data);
+    await notifyOps(c, { kind: "rights_claim", target: body.data.target });
+    return c.body(null, 204);
+  });
+
+  // ---- 運営の管理画面（合言葉 ADMIN_TOKEN が必要。空なら使えない） ----
+
+  app.get("/admin", (c) => {
+    if (!c.env.ADMIN_TOKEN) return c.notFound();
+    return c.body(ADMIN_PAGE, 200, PAGE_HEADERS);
+  });
+
+  const admin = new Hono<{ Bindings: Env }>();
+  admin.use("*", async (c, next) => {
+    if (!c.env.ADMIN_TOKEN) return c.notFound();
+    if (!isAdminAuthorized(c.req.header("Authorization"), c.env.ADMIN_TOKEN)) {
+      return c.json({ error: "合言葉が違います" }, 401);
+    }
+    c.header("Cache-Control", "no-store");
+    await next();
+  });
+
+  admin.get("/queue", async (c) => {
+    const items = await d1ModerationStore(c.env.DB).adminQueue();
+    return c.json({ items });
+  });
+
+  admin.get("/works/:workId", async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const work = await d1ModerationStore(c.env.DB).adminWork(workId.data);
+    if (!work) return c.json({ error: "作品が見つかりません" }, 404);
+    return c.json({ work });
+  });
+
+  admin.post("/works/:workId/actions", async (c) => {
+    const workId = workIdSchema.safeParse(c.req.param("workId"));
+    if (!workId.success) return c.json({ error: "作品が見つかりません" }, 404);
+    const body = moderationActionSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: "リクエストが不正です" }, 400);
+    const result = await d1ModerationStore(c.env.DB).adminAct(
+      workId.data,
+      body.data.action,
+    );
+    if (!result) return c.json({ error: "作品が見つかりません" }, 404);
+    if (result.suspended) {
+      await notifyOps(c, {
+        kind: "suspended",
+        userId: result.authorId,
+        strikes: result.strikes,
+      });
+    }
+    return c.json(result);
+  });
+
+  admin.delete("/suspensions/:userId", async (c) => {
+    const userId = userIdSchema.safeParse(c.req.param("userId"));
+    if (!userId.success)
+      return c.json({ error: "利用者が見つかりません" }, 404);
+    await d1ModerationStore(c.env.DB).adminUnsuspend(userId.data);
+    return c.body(null, 204);
+  });
+
+  admin.get("/rights-claims", async (c) => {
+    const claims = await d1ModerationStore(c.env.DB).adminRightsClaims();
+    return c.json({ claims });
+  });
+
+  admin.patch("/rights-claims/:id", async (c) => {
+    const id = rightsClaimIdSchema.safeParse(c.req.param("id"));
+    const body = updateRightsClaimSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!id.success || !body.success) {
+      return c.json({ error: "リクエストが不正です" }, 400);
+    }
+    const store = d1ModerationStore(c.env.DB);
+    if (body.data.workId && !(await store.titleOf(body.data.workId))) {
+      return c.json({ error: "作品が見つかりません" }, 404);
+    }
+    const updated = await store.adminUpdateRightsClaim(id.data, body.data);
+    if (!updated) return c.json({ error: "申し立てが見つかりません" }, 404);
+    return c.body(null, 204);
+  });
+
+  app.route("/admin/api", admin);
 
   return app;
 }

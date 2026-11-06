@@ -20,7 +20,8 @@ type PublicWorkRow = {
 
 // 公開作品と、ランキングに使う数字。作者は名前だけ取る（メールアドレスは出さない）。
 // 読者数・読了数は作者本人の読み返しを数えない。読了は最後の章を読み終えた人。
-// ?1 は見る人の利用者ID（ログインしていなければ空文字）。どちらかがブロックした相手の作品と、自分が通報した作品は出さない
+// ?1 は見る人の利用者ID（ログインしていなければ空文字）。どちらかがブロックした相手の作品と、自分が通報した作品は出さない。
+// 運営が隠した・取り下げた作品（moderation が ok 以外）と、止めたアカウントの作品は誰にも出さない
 const SELECT_PUBLIC_WORK = `
   select w."id", w."author_id", w."title", u."name" as "author_name", w."published_at",
     (select count(*) from "chapters" c where c."work_id" = w."id") as "chapter_count",
@@ -33,7 +34,8 @@ const SELECT_PUBLIC_WORK = `
          and c."position" = (select max("position") from "chapters" where "work_id" = w."id")) as "completions",
     (select count(*) from "likes" l where l."work_id" = w."id") as "likes"
   from "works" w join "user" u on u."id" = w."author_id"
-  where w."status" = 'published'
+  where w."status" = 'published' and w."moderation" = 'ok'
+    and not exists (select 1 from "suspensions" s where s."user_id" = w."author_id")
     and not exists (select 1 from "blocks" b
       where (b."blocker_id" = ?1 and b."blocked_id" = w."author_id")
          or (b."blocker_id" = w."author_id" and b."blocked_id" = ?1))

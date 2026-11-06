@@ -24,6 +24,25 @@ class SessionUser {
   );
 }
 
+/// 運営の判断による作品の状態（packages/core/src/api の WorkModeration）。
+/// ok 以外の作品は、公開にしていても他人には見えない
+enum WorkModeration {
+  /// 問題なし
+  ok,
+
+  /// 通報がたまったので、運営の確認まで仮で隠している
+  hidden,
+
+  /// 運営が取り下げた
+  removed;
+
+  static WorkModeration fromName(String? name) => switch (name) {
+    'hidden' => hidden,
+    'removed' => removed,
+    _ => ok,
+  };
+}
+
 /// 作品一覧の1行（packages/core/src/api の WorkSummary）
 class WorkSummary {
   const WorkSummary({
@@ -33,6 +52,8 @@ class WorkSummary {
     required this.chapterCount,
     required this.publishedAt,
     required this.updatedAt,
+    this.moderation = WorkModeration.ok,
+    this.appealPending = false,
   });
 
   final String id;
@@ -41,6 +62,10 @@ class WorkSummary {
   final int chapterCount;
   final DateTime? publishedAt;
   final DateTime updatedAt;
+  final WorkModeration moderation;
+
+  /// 非表示・取り下げに出した異議が、まだ運営の確認待ちか
+  final bool appealPending;
 
   factory WorkSummary.fromJson(Map<String, dynamic> json) => WorkSummary(
     id: json['id'] as String,
@@ -49,6 +74,8 @@ class WorkSummary {
     chapterCount: json['chapterCount'] as int,
     publishedAt: _parseTime(json['publishedAt'] as String?),
     updatedAt: _parseTime(json['updatedAt'] as String)!,
+    moderation: WorkModeration.fromName(json['moderation'] as String?),
+    appealPending: json['appealPending'] == true,
   );
 }
 
@@ -417,6 +444,13 @@ class ApiClient {
     ) as Map<String, dynamic>;
     return WorkSummary.fromJson(json);
   }
+
+  /// 非表示・取り下げられた自分の作品に、運営への異議を出す。
+  Future<void> appealWork(String workId, String body) => _request(
+    'POST',
+    '/api/works/$workId/appeals',
+    body: {'body': body.trim()},
+  );
 
   // ---- みんなの作品 ----
 

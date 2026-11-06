@@ -16,7 +16,9 @@
 - Apple の 5.1.1(v) と Google Play は、アカウントを作れるアプリにアプリ内での削除を求める
 - 公開の直前に慌てて足すより、ランキングや行動学習の形が固まった今のうちに入れたほうが、見えなくする条件をクエリ1か所（`d1-public-works-store.ts` の `SELECT_PUBLIC_WORK`）にまとめられる
 
-## 運営の対応（いまは管理画面がない）
+## 運営の対応（2026-11-06 からは管理画面 `/admin` で行う。[0007](0007-copyright-infringement.md)）
+
+以下は管理画面ができる前の手順（直接DBを触るときの参考）。
 
 - 未対応の通報を見る：`pnpm exec wrangler d1 execute novel-db --remote --command "select r.id, r.reason, r.detail, r.created_at, w.id as work_id, w.title from reports r join works w on w.id = r.work_id where r.status = 'open' order by r.created_at"`
 - 作品を取り下げる：`update works set status = 'draft' where id = '<作品ID>'`（作者がまた公開できるので、悪質なら作品ごと `delete from works where id = '<作品ID>'`）
@@ -25,6 +27,4 @@
 
 ## まだやっていないこと
 
-- 通報が来たときに運営へ知らせる仕組み（メールや Slack への通知）と管理画面
 - 運営の連絡先（サポートURL）をアプリとストアの掲載情報に載せる
-- 同じ作品に通報が一定数たまったら自動で非表示にする

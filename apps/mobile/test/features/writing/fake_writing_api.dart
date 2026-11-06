@@ -9,6 +9,8 @@ class FakeWritingApi extends ApiClient {
   final chapters = <String, List<Chapter>>{};
   final titles = <String, String>{};
   final published = <String, bool>{};
+  final moderation = <String, WorkModeration>{};
+  final appeals = <({String workId, String body})>[];
   final requests = <({String? workId, String? plotRequest})>[];
 
   /// 次の生成で投げるエラー
@@ -46,6 +48,8 @@ class FakeWritingApi extends ApiClient {
     chapterCount: chapters[id]!.length,
     publishedAt: null,
     updatedAt: DateTime.utc(2026, 10, 28),
+    moderation: moderation[id] ?? WorkModeration.ok,
+    appealPending: appeals.any((a) => a.workId == id),
   );
 
   @override
@@ -67,5 +71,10 @@ class FakeWritingApi extends ApiClient {
     if (title != null) titles[workId] = title;
     if (published != null) this.published[workId] = published;
     return _summary(workId);
+  }
+
+  @override
+  Future<void> appealWork(String workId, String body) async {
+    appeals.add((workId: workId, body: body.trim()));
   }
 }

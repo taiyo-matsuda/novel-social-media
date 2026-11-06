@@ -55,4 +55,24 @@ void main() {
     );
     expect(workStatusLabel(work), '公開中・3章');
   });
+
+  test('workStatusLabel は運営が隠しているとそれを出す', () {
+    WorkSummary withModeration(WorkModeration moderation) => WorkSummary(
+      id: 'w1',
+      title: '古書店',
+      published: true,
+      chapterCount: 2,
+      publishedAt: DateTime.utc(2026, 10, 28),
+      updatedAt: DateTime.utc(2026, 10, 28),
+      moderation: moderation,
+    );
+    expect(
+      workStatusLabel(withModeration(WorkModeration.hidden)),
+      '確認中のため非表示・2章',
+    );
+    expect(
+      workStatusLabel(withModeration(WorkModeration.removed)),
+      '運営により非公開・2章',
+    );
+  });
 }

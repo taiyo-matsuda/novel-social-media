@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  appealRequestSchema,
   generateChapterRequestSchema,
   openingIdSchema,
   recordReadRequestSchema,
   reportWorkRequestSchema,
+  rightsClaimRequestSchema,
   saveOpeningChoiceRequestSchema,
   setLikeRequestSchema,
   updateWorkRequestSchema,
@@ -131,5 +133,48 @@ describe("userIdSchema", () => {
     expect(userIdSchema.safeParse("").success).toBe(false);
     expect(userIdSchema.safeParse("a/b").success).toBe(false);
     expect(userIdSchema.safeParse("a".repeat(65)).success).toBe(false);
+  });
+});
+
+describe("appealRequestSchema", () => {
+  it("前後の空白を除いた1〜1000字の異議を受け付ける", () => {
+    expect(appealRequestSchema.parse({ body: " 自分で考えた話です " })).toEqual(
+      { body: "自分で考えた話です" },
+    );
+    expect(appealRequestSchema.safeParse({ body: "  " }).success).toBe(false);
+    expect(
+      appealRequestSchema.safeParse({ body: "あ".repeat(1001) }).success,
+    ).toBe(false);
+  });
+});
+
+describe("rightsClaimRequestSchema", () => {
+  const claim = {
+    name: "山田花子",
+    email: "hanako@example.com",
+    target: "『古書店の少女』（作者：太郎）",
+    original: "https://example.com/my-novel",
+    agreed: true,
+  };
+
+  it("名前・連絡先・対象・元の作品と同意があれば受け付ける", () => {
+    expect(rightsClaimRequestSchema.safeParse(claim).success).toBe(true);
+    expect(
+      rightsClaimRequestSchema.safeParse({ ...claim, website: "" }).success,
+    ).toBe(true);
+  });
+
+  it("同意がない・メールアドレスが不正・見えない欄が埋まっているものは弾く", () => {
+    expect(
+      rightsClaimRequestSchema.safeParse({ ...claim, agreed: false }).success,
+    ).toBe(false);
+    expect(
+      rightsClaimRequestSchema.safeParse({ ...claim, email: "not-mail" })
+        .success,
+    ).toBe(false);
+    expect(
+      rightsClaimRequestSchema.safeParse({ ...claim, website: "spam.example" })
+        .success,
+    ).toBe(false);
   });
 });

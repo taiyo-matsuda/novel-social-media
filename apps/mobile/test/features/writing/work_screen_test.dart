@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ballad/features/writing/work_screen.dart';
+import 'package:ballad/services/api_client.dart';
 
 import 'fake_writing_api.dart';
 
@@ -83,5 +84,28 @@ void main() {
 
     expect(api.titles[workId], '古書店の少女');
     expect(find.widgetWithText(AppBar, '古書店の少女'), findsOneWidget);
+  });
+
+  testWidgets('問題なしの作品には、運営の知らせも異議のボタンも出さない', (tester) async {
+    await pump(tester);
+    expect(find.text('異議を出す'), findsNothing);
+  });
+
+  testWidgets('運営が隠した作品は知らせを出し、異議を送ると確認待ちになる', (tester) async {
+    api.moderation[workId] = WorkModeration.hidden;
+    await pump(tester);
+    expect(find.text('確認中のため非表示・1章'), findsOneWidget);
+    expect(find.textContaining('運営が確認するまで'), findsOneWidget);
+
+    await tester.tap(find.text('異議を出す'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, ' 自分で考えた話です ');
+    await tester.pump();
+    await tester.tap(find.text('送る'));
+    await tester.pumpAndSettle();
+
+    expect(api.appeals.single, (workId: workId, body: '自分で考えた話です'));
+    expect(find.text('異議を出す'), findsNothing);
+    expect(find.text('異議を受け付けました。運営の確認をお待ちください。'), findsOneWidget);
   });
 }

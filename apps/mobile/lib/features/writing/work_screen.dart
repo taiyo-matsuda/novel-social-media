@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_client.dart';
 import '../../widgets/app_button.dart';
+import 'moderation_notice.dart';
 import 'plot_request.dart';
 import 'plot_request_field.dart';
 
 /// 自分の作品を読み、「次はこうしてほしい」を伝えて続きの章をAIに書いてもらう画面。
 /// 題名の変更と公開・非公開の切り替えもここで行う。
+/// 運営が非表示・取り下げにした作品は、そのことを知らせ、異議を出せるようにする。
 class WorkScreen extends StatefulWidget {
   const WorkScreen({super.key, required this.api, required this.workId});
 
@@ -107,6 +109,26 @@ class _WorkScreenState extends State<WorkScreen> {
     }
   }
 
+  Future<void> _appeal() async {
+    final body = await showDialog<String>(
+      context: context,
+      builder: (_) => const _AppealDialog(),
+    );
+    if (body == null) return;
+    setState(() {
+      _updating = true;
+      _error = null;
+    });
+    try {
+      await widget.api.appealWork(widget.workId, body);
+      await _load();
+    } catch (_) {
+      if (mounted) setState(() => _error = '異議を送れませんでした。時間をおいて、もう一度試してください。');
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
   Future<void> _editTitle(String current) async {
     final title = await showDialog<String>(
       context: context,
@@ -187,6 +209,12 @@ class _WorkScreenState extends State<WorkScreen> {
       children: [
         Text(workStatusLabel(work.summary), style: theme.textTheme.bodySmall),
         const SizedBox(height: 8),
+        if (moderationNotice(work.summary) case final notice?)
+          _ModerationCard(
+            notice: notice,
+            appealPending: work.summary.appealPending,
+            onAppeal: _updating ? null : _appeal,
+          ),
         for (final (i, chapter) in work.chapters.indexed)
           _ChapterView(
             key: i == work.chapters.length - 1 ? _latestChapterKey : null,
@@ -237,6 +265,45 @@ class _WorkScreenState extends State<WorkScreen> {
           onPressed: _generating ? null : () => _togglePublished(published),
         ),
       ],
+    );
+  }
+}
+
+/// 運営が非表示・取り下げにしたことの知らせと、異議を出すボタン
+class _ModerationCard extends StatelessWidget {
+  const _ModerationCard({
+    required this.notice,
+    required this.appealPending,
+    required this.onAppeal,
+  });
+
+  final String notice;
+  final bool appealPending;
+  final VoidCallback? onAppeal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(notice, style: const TextStyle(fontSize: 15, height: 1.6)),
+            const SizedBox(height: 12),
+            if (appealPending)
+              Text(
+                '異議を受け付けました。運営の確認をお待ちください。',
+                style: theme.textTheme.bodySmall,
+              )
+            else
+              AppButton(label: '異議を出す', primary: false, onPressed: onAppeal),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -327,6 +394,56 @@ class _TitleDialogState extends State<_TitleDialog> {
                 ? null
                 : () => Navigator.of(context).pop(value.text.trim()),
             child: const Text('保存'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 運営への異議を書くダイアログ。決定した文面（空白は取る）を返す
+class _AppealDialog extends StatefulWidget {
+  const _AppealDialog();
+
+  @override
+  State<_AppealDialog> createState() => _AppealDialogState();
+}
+
+class _AppealDialogState extends State<_AppealDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('異議を出す'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: maxAppealLength,
+        maxLines: 5,
+        decoration: const InputDecoration(
+          labelText: '運営に伝えたいこと',
+          hintText: '例：展開リクエストから自分で作った話です',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('やめる'),
+        ),
+        ValueListenableBuilder(
+          valueListenable: _controller,
+          builder: (context, value, _) => TextButton(
+            onPressed: value.text.trim().isEmpty
+                ? null
+                : () => Navigator.of(context).pop(value.text.trim()),
+            child: const Text('送る'),
           ),
         ),
       ],

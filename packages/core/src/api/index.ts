@@ -45,11 +45,21 @@ export const workIdSchema = z.uuid();
 
 export type WorkStatus = "draft" | "published";
 
+/**
+ * 運営の判断による作品の状態（作者が決める公開・下書きとは別）。
+ * ok：問題なし、hidden：通報がたまったので確認まで仮で隠している、removed：運営が取り下げた。
+ * ok 以外の作品は、公開にしていても他人には見えない
+ */
+export type WorkModeration = "ok" | "hidden" | "removed";
+
 /** 作品一覧の1行 */
 export type WorkSummary = {
   id: string;
   title: string;
   status: WorkStatus;
+  moderation: WorkModeration;
+  /** 非表示・取り下げに出した異議が、まだ運営の確認待ちか */
+  appealPending: boolean;
   chapterCount: number;
   /** 公開した日時（未公開なら null） */
   publishedAt: string | null;
@@ -172,3 +182,29 @@ export type BlockedUser = { userId: string; name: string; blockedAt: string };
 
 /** GET /api/blocks：ブロックした人を新しい順に */
 export type ListBlocksResponse = { blocks: BlockedUser[] };
+
+// ---- 非表示への異議・権利者の申し立て ----
+
+/** POST /api/works/:workId/appeals：非表示・取り下げられた自分の作品に異議を出す */
+export const appealRequestSchema = z.object({
+  body: z.string().trim().min(1).max(1000),
+});
+export type AppealRequest = z.infer<typeof appealRequestSchema>;
+
+/**
+ * POST /api/rights-claims：アプリを使っていない権利者が、Web のフォーム（/rights）から申し立てる。ログイン不要。
+ * website は機械的な投稿を弾くための見えない欄で、人が送るときは必ず空
+ */
+export const rightsClaimRequestSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  email: z.email().max(254),
+  /** 対象の作品（作品名・作者名など） */
+  target: z.string().trim().min(1).max(500),
+  /** 元の作品（作品名・URLなど） */
+  original: z.string().trim().min(1).max(500),
+  detail: z.string().trim().max(2000).optional(),
+  /** 権利者本人か代理人であり、内容が正しいことへの同意 */
+  agreed: z.literal(true),
+  website: z.string().max(0).optional(),
+});
+export type RightsClaimRequest = z.infer<typeof rightsClaimRequestSchema>;

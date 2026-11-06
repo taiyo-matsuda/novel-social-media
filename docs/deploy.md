@@ -53,13 +53,24 @@ pnpm exec wrangler secret put BETTER_AUTH_URL
 
 # Claude API のキーを貼る（apps/api/.dev.vars に入れているものと同じでよい）
 pnpm exec wrangler secret put ANTHROPIC_API_KEY
+
+# 運営の管理画面（/admin）の合言葉。作った値は手元のパスワード管理に控えておく
+openssl rand -base64 32
+pnpm exec wrangler secret put ADMIN_TOKEN
+
+# 通報を知らせる Slack の Incoming Webhook の URL を貼る（Slack の「アプリ > Incoming Webhooks」で作る）
+pnpm exec wrangler secret put OPS_WEBHOOK_URL
 ```
+
+`ADMIN_TOKEN` が空だと管理画面は開けず、`OPS_WEBHOOK_URL` が空だと通報の通知は届かない（通報そのものは貯まる）。
 
 Google ログインのクライアントIDは `wrangler.jsonc` に入っているので、何もしなくてよい。
 
 ### 6. 動いているか確かめる
 
 ブラウザで `https://ballad-api.<サブドメイン>.workers.dev/api/openings` を開く。冒頭文の一覧（JSON）が出れば成功。
+
+運営の管理画面は `https://ballad-api.<サブドメイン>.workers.dev/admin`、権利者の申し立てフォームは `/rights` にある。
 
 ### 7. iPhone のアプリを本番につなぐ
 
