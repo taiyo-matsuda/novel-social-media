@@ -11,6 +11,7 @@ Cloudflare Workers で動く API。フレームワークは Hono、DB は Cloudf
 - Google ログインは ID トークン方式（`/api/auth/sign-in/social`）。`GOOGLE_CLIENT_IDS` に Web・iOS・Android のクライアントIDをカンマ区切りで入れる。空なら無効。テストでは `createApp({ auth: { verifyGoogleIdToken } })` で署名確認を差し替える
 - パスワードのハッシュは `src/lib/password.ts`（PBKDF2）。Better Auth 標準の scrypt は Workers の無料枠のCPU時間を超えるので使わない
 - DBを使う処理のテストは `src/test/fake-d1.ts`（Node 標準の SQLite でマイグレーションを流した D1 の代わり）を使う。`src/app.test.ts` のように `app.request()` で API ごと試せる
+- 通報による非表示・取り下げ・アカウント停止・異議・権利者の申し立ては `src/features/moderation/`（決まりの数は `policy.ts`）。他人に見せる作品のクエリは `works.moderation = 'ok'` と、止めたアカウント（`suspensions`）でないことで絞る。運営の管理画面 `/admin` は `ADMIN_TOKEN`、通知は `OPS_WEBHOOK_URL`（Slack）。テストでは `createApp({ createNotifier })` で通知を差し替える
 - 秘密情報は `wrangler.jsonc` に書かない。ローカルは `.dev.vars`（`.dev.vars.example` をコピー）、本番は `wrangler secret put`
 - Better Auth のバージョンを上げて表が変わったら、`pnpm dlx @better-auth/cli generate` で出るSQLを新しいマイグレーションにする
 

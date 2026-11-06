@@ -50,6 +50,12 @@ String generationErrorMessage(Object error) {
   return '通信できませんでした。電波の良いところで、もう一度試してください。';
 }
 
-/// 一覧に出す作品の状態（例：「公開中・3章」）
-String workStatusLabel(WorkSummary work) =>
-    '${work.published ? '公開中' : '下書き'}・${work.chapterCount}章';
+/// 一覧に出す作品の状態（例：「公開中・3章」）。運営が隠しているときはそれを出す
+String workStatusLabel(WorkSummary work) {
+  final status = switch (work.moderation) {
+    WorkModeration.ok => work.published ? '公開中' : '下書き',
+    WorkModeration.hidden => '確認中のため非表示',
+    WorkModeration.removed => '運営により非公開',
+  };
+  return '$status・${work.chapterCount}章';
+}

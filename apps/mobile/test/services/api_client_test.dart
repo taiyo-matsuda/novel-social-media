@@ -215,6 +215,38 @@ void main() {
       expect(work.summary.published, isTrue);
       expect(work.summary.publishedAt, DateTime.utc(2026, 10, 28, 1));
       expect(work.chapters.single.plotRequest, isNull);
+      // 運営の判断が来なければ問題なし扱い
+      expect(work.summary.moderation, WorkModeration.ok);
+      expect(work.summary.appealPending, isFalse);
+    });
+
+    test('運営の判断と異議の状態を読み、異議は空白を取って送る', () async {
+      final api = clientWith(
+        (req) async => req.method == 'GET'
+            ? jsonResponse({
+                'works': [
+                  {
+                    'id': 'w1',
+                    'title': '古書店',
+                    'status': 'published',
+                    'moderation': 'hidden',
+                    'appealPending': true,
+                    'chapterCount': 1,
+                    'publishedAt': '2026-10-28 01:00:00',
+                    'updatedAt': '2026-10-28 00:30:00',
+                  },
+                ],
+              })
+            : jsonResponse(null, status: 204),
+      );
+      final works = await api.fetchOwnWorks();
+      expect(works.single.moderation, WorkModeration.hidden);
+      expect(works.single.appealPending, isTrue);
+
+      await api.appealWork('w1', '  自分で考えた話です ');
+      expect(sent.last.method, 'POST');
+      expect(sent.last.url.path, '/api/works/w1/appeals');
+      expect(jsonDecode(sent.last.body), {'body': '自分で考えた話です'});
     });
 
     test('公開状態の変更は PATCH で送る', () async {

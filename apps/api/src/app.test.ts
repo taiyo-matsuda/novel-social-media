@@ -18,10 +18,13 @@ import type { Env } from "./env";
 import { createFakeD1 } from "./test/fake-d1";
 
 const BASE = "http://localhost:8787";
+const ADMIN_TOKEN = "admin-token-for-test";
 
 let env: Env;
 let generator: FakeNovelGenerator;
 let app: ReturnType<typeof createApp>;
+/** 運営に送った通知（Slack には送らない） */
+let notifications: string[];
 
 beforeEach(() => {
   env = {
@@ -29,9 +32,16 @@ beforeEach(() => {
     BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret",
     BETTER_AUTH_URL: BASE,
     TRUSTED_ORIGINS: "http://localhost:8081",
+    ADMIN_TOKEN: ADMIN_TOKEN,
   };
   generator = new FakeNovelGenerator();
-  app = createApp({ createGenerator: () => generator });
+  notifications = [];
+  app = createApp({
+    createGenerator: () => generator,
+    createNotifier: () => async (text) => {
+      notifications.push(text);
+    },
+  });
 });
 
 function request(path: string, init: RequestInit = {}) {
@@ -826,5 +836,286 @@ describe("通報・ブロック・退会", () => {
               (select count(*) from "blocks") as "blocks"`,
     ).first();
     expect(left).toEqual({ works: 0, reports: 0, blocks: 0 });
+  });
+});
+
+describe("無断転載への対応（非表示・取り下げ・停止・異議・権利者の申し立て）", () => {
+  const admin = { Authorization: `Bearer ${ADMIN_TOKEN}` };
+
+  async function titles(cookie?: string) {
+    const res = await request(
+      "/api/public-works",
+      cookie ? { headers: { Cookie: cookie } } : {},
+    );
+    return ((await res.json()) as ListPublicWorksResponse).works.map(
+      (w) => w.title,
+    );
+  }
+
+  function report(workId: string, reason: string, cookie: string) {
+    return request(
+      `/api/public-works/${workId}/reports`,
+      json("POST", { reason }, cookie),
+    );
+  }
+
+  function act(workId: string, action: string) {
+    return request(`/admin/api/works/${workId}/actions`, {
+      method: "POST",
+      headers: { ...admin, "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+  }
+
+  async function ownWork(cookie: string, workId: string) {
+    const res = await request(`/api/works/${workId}`, {
+      headers: { Cookie: cookie },
+    });
+    return ((await res.json()) as GetOwnWorkResponse).work;
+  }
+
+  it("権利侵害の通報は1件で、誰にも見えないよう仮で隠し、運営に知らせる", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const jiro = await signUp("jiro@example.com");
+    const workId = await publish(taro, "古書店の少女");
+
+    expect((await report(workId, "rights", hanako)).status).toBe(204);
+    expect(await titles(jiro)).toEqual([]);
+    expect(await titles()).toEqual([]);
+    expect(
+      (
+        await request(`/api/public-works/${workId}`, {
+          headers: { Cookie: jiro },
+        })
+      ).status,
+    ).toBe(404);
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toContain("【権利侵害】通報：『古書店の少女』");
+    expect(notifications[0]).toContain("自動で非表示");
+    expect(notifications[0]).toContain(`${BASE}/admin`);
+    expect(notifications[0]).not.toContain("hanako@example.com");
+
+    // 作者には自分の作品として見え、非表示になったことがわかる
+    expect(await ownWork(taro, workId)).toMatchObject({
+      status: "published",
+      moderation: "hidden",
+      appealPending: false,
+    });
+  });
+
+  it("それ以外の通報は3人目で仮で隠す", async () => {
+    const taro = await signUp("taro@example.com");
+    const readers = [
+      await signUp("a@example.com"),
+      await signUp("b@example.com"),
+      await signUp("c@example.com"),
+    ];
+    const viewer = await signUp("viewer@example.com");
+    const workId = await publish(taro, "古書店の少女");
+
+    await report(workId, "spam", readers[0]!);
+    await report(workId, "harassment", readers[1]!);
+    expect(await titles(viewer)).toEqual(["古書店の少女"]);
+    await report(workId, "other", readers[2]!);
+    expect(await titles(viewer)).toEqual([]);
+    expect(notifications.map((n) => n.includes("自動で非表示"))).toEqual([
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it("作者は異議を一度だけ出せ、運営が問題なしに戻すと見えるようになる", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const workId = await publish(taro, "古書店の少女");
+
+    const appeal = (body: unknown, cookie = taro) =>
+      request(`/api/works/${workId}/appeals`, json("POST", body, cookie));
+
+    // 問題なしの作品には出せない
+    expect((await appeal({ body: "自作です" })).status).toBe(409);
+    await report(workId, "rights", hanako);
+    expect((await appeal({ body: "" })).status).toBe(400);
+    expect((await appeal({ body: "自作です" }, hanako)).status).toBe(404);
+    expect((await appeal({ body: "自分で考えた話です" })).status).toBe(204);
+    expect((await appeal({ body: "もう一度" })).status).toBe(409);
+    expect((await ownWork(taro, workId)).appealPending).toBe(true);
+    expect(notifications.at(-1)).toContain("異議：『古書店の少女』");
+
+    const queue = (await (
+      await request("/admin/api/queue", { headers: admin })
+    ).json()) as { items: { workId: string; openAppeals: number }[] };
+    expect(queue.items).toMatchObject([{ workId, openAppeals: 1 }]);
+
+    expect((await act(workId, "restore")).status).toBe(200);
+    expect(await titles()).toEqual(["古書店の少女"]);
+    expect(await ownWork(taro, workId)).toMatchObject({
+      moderation: "ok",
+      appealPending: false,
+    });
+    const after = (await (
+      await request("/admin/api/queue", { headers: admin })
+    ).json()) as { items: unknown[] };
+    expect(after.items).toEqual([]);
+  });
+
+  it("取り下げを3回されると、アカウントを止めてログインも作品も止まる", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const works = [
+      await publish(taro, "一作目"),
+      await publish(taro, "二作目"),
+      await publish(taro, "三作目"),
+    ];
+    const fourth = await publish(taro, "四作目");
+
+    const results = [];
+    for (const w of works) {
+      results.push((await (await act(w, "remove")).json()) as object);
+    }
+    expect(results).toMatchObject([
+      { moderation: "removed", strikes: 1, suspended: false },
+      { moderation: "removed", strikes: 2, suspended: false },
+      { moderation: "removed", strikes: 3, suspended: true },
+    ]);
+    // 同じ作品をもう一度取り下げても数えない
+    expect(await (await act(works[0]!, "remove")).json()).toMatchObject({
+      strikes: 3,
+      suspended: false,
+    });
+    expect(notifications.at(-1)).toContain("取り下げが3回");
+
+    // 止めたアカウントの作品は、取り下げていないものも出ない
+    expect(await titles(hanako)).toEqual([]);
+    expect(fourth).toBeTruthy();
+    // いまのログインは切れ、ログインし直せない
+    expect(
+      (await request("/api/works", { headers: { Cookie: taro } })).status,
+    ).toBe(401);
+    const signIn = await request(
+      "/api/auth/sign-in/email",
+      json("POST", { email: "taro@example.com", password: "password123" }),
+    );
+    expect(signIn.status).toBe(403);
+
+    // 停止を解くと、またログインでき、取り下げていない作品は戻る
+    const { work } = (await (
+      await request(`/admin/api/works/${fourth}`, { headers: admin })
+    ).json()) as { work: { authorId: string; suspended: number } };
+    expect(work.suspended).toBe(1);
+    expect(
+      (
+        await request(`/admin/api/suspensions/${work.authorId}`, {
+          method: "DELETE",
+          headers: admin,
+        })
+      ).status,
+    ).toBe(204);
+    const again = await request(
+      "/api/auth/sign-in/email",
+      json("POST", { email: "taro@example.com", password: "password123" }),
+    );
+    expect(again.status).toBe(200);
+    expect(await titles(hanako)).toEqual(["四作目"]);
+  });
+
+  it("取り下げた作品を問題なしに戻すと、その違反も取り消す", async () => {
+    const taro = await signUp("taro@example.com");
+    const workId = await publish(taro, "古書店の少女");
+    await act(workId, "remove");
+    expect(await (await act(workId, "restore")).json()).toMatchObject({
+      moderation: "ok",
+      strikes: 0,
+    });
+  });
+
+  it("権利者はログインなしで Web から申し立てでき、運営が作品に結びつけて対応済みにできる", async () => {
+    const taro = await signUp("taro@example.com");
+    const workId = await publish(taro, "古書店の少女");
+
+    const page = await request("/rights");
+    expect(page.status).toBe(200);
+    expect(page.headers.get("Content-Security-Policy")).toContain(
+      "frame-ancestors 'none'",
+    );
+    expect(await page.text()).toContain("権利侵害の申し立て");
+
+    const claim = {
+      name: "山田花子",
+      email: "yamada@example.com",
+      target: "『古書店の少女』",
+      original: "https://example.com/my-novel",
+      agreed: true,
+      website: "",
+    };
+    const send = (body: unknown) =>
+      request("/api/rights-claims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    expect((await send({ ...claim, agreed: false })).status).toBe(400);
+    expect((await send({ ...claim, website: "bot" })).status).toBe(400);
+    expect((await send(claim)).status).toBe(204);
+    expect(notifications.at(-1)).toContain("【権利侵害】Web から申し立て");
+    expect(notifications.at(-1)).not.toContain("yamada@example.com");
+
+    const list = async () =>
+      (
+        (await (
+          await request("/admin/api/rights-claims", { headers: admin })
+        ).json()) as {
+          claims: { id: number; status: string; workId: string | null }[];
+        }
+      ).claims;
+    const [saved] = await list();
+    expect(saved).toMatchObject({ status: "open", workId: null });
+
+    const patch = (body: unknown) =>
+      request(`/admin/api/rights-claims/${saved!.id}`, {
+        method: "PATCH",
+        headers: { ...admin, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    expect((await patch({ workId: crypto.randomUUID() })).status).toBe(404);
+    expect((await patch({ workId })).status).toBe(204);
+    // 作品を取り下げると、結びつけた申し立ても対応済みになる
+    await act(workId, "remove");
+    expect(await list()).toMatchObject([{ workId, status: "resolved" }]);
+  });
+
+  it("管理画面は合言葉がないと使えず、合言葉が設定されていなければ存在しない", async () => {
+    expect((await request("/admin/api/queue")).status).toBe(401);
+    expect(
+      (
+        await request("/admin/api/queue", {
+          headers: { Authorization: "Bearer wrong" },
+        })
+      ).status,
+    ).toBe(401);
+    expect((await request("/admin")).status).toBe(200);
+
+    env.ADMIN_TOKEN = undefined;
+    expect((await request("/admin")).status).toBe(404);
+    expect((await request("/admin/api/queue", { headers: admin })).status).toBe(
+      404,
+    );
+  });
+
+  it("管理画面の作品の中身には、作者のメールアドレスを出さない", async () => {
+    const taro = await signUp("taro@example.com");
+    const hanako = await signUp("hanako@example.com");
+    const workId = await publish(taro, "古書店の少女");
+    await report(workId, "rights", hanako);
+    const res = await request(`/admin/api/works/${workId}`, {
+      headers: admin,
+    });
+    const text = await res.text();
+    expect(res.status).toBe(200);
+    expect(text).toContain("古書店の少女");
+    expect(text).not.toContain("taro@example.com");
+    expect(text).not.toContain("hanako@example.com");
   });
 });

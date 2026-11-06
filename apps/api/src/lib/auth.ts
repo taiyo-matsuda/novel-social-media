@@ -1,8 +1,10 @@
 import { MIN_PASSWORD_LENGTH } from "@novel/core/auth";
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { bearer } from "better-auth/plugins";
 
 import { webOrigins, type Env } from "../env";
+import { d1ModerationStore } from "../features/moderation/d1-moderation-store";
 import { hashPassword, verifyPassword } from "./password";
 
 /** テストで Google の署名確認を差し替えるためのもの */
@@ -46,6 +48,22 @@ export function createAuth(env: Env, deps: AuthDeps = {}) {
             },
           }
         : undefined,
+    // 運営が止めたアカウントはログインさせない（止めたときに、それまでのログインも切っている）
+    databaseHooks: {
+      session: {
+        create: {
+          async before(session) {
+            if (await d1ModerationStore(env.DB).isSuspended(session.userId)) {
+              throw APIError.from("FORBIDDEN", {
+                message:
+                  "このアカウントは利用規約への違反により停止されています",
+                code: "SUSPENDED_USER",
+              });
+            }
+          },
+        },
+      },
+    },
     // スマホアプリは Origin を付けないので、ブラウザで試すときの開発サーバーだけ
     trustedOrigins: webOrigins(env),
     plugins: [bearer()],

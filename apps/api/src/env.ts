@@ -12,6 +12,10 @@ export type Env = {
   /** 空ならAIはフェイクで動く */
   ANTHROPIC_API_KEY?: string;
   ANTHROPIC_MODEL?: string;
+  /** 通報などを運営に知らせる Slack の Incoming Webhook の URL。空なら知らせない */
+  OPS_WEBHOOK_URL?: string;
+  /** 運営の管理画面（/admin）に入るための合言葉。空なら管理画面は使えない */
+  ADMIN_TOKEN?: string;
 };
 
 /** TRUSTED_ORIGINS をオリジンの配列にする */

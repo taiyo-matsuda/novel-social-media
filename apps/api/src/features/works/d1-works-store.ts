@@ -2,6 +2,7 @@ import type {
   ChapterView,
   GetOwnWorkResponse,
   UpdateWorkRequest,
+  WorkModeration,
   WorkStatus,
   WorkSummary,
 } from "@novel/core/api";
@@ -10,15 +11,18 @@ type WorkRow = {
   id: string;
   title: string;
   status: WorkStatus;
+  moderation: WorkModeration;
+  appeal_pending: number;
   published_at: string | null;
   created_at: string;
   chapter_count: number;
   updated_at: string | null;
 };
 
-// 章の数と最後に章が増えた日時もまとめて取る
+// 章の数と最後に章が増えた日時、運営の判断と確認待ちの異議もまとめて取る
 const SELECT_WORK = `
-  select w."id", w."title", w."status", w."published_at", w."created_at",
+  select w."id", w."title", w."status", w."moderation", w."published_at", w."created_at",
+    exists (select 1 from "appeals" a where a."work_id" = w."id" and a."status" = 'open') as "appeal_pending",
     count(c."id") as "chapter_count", max(c."created_at") as "updated_at"
   from "works" w left join "chapters" c on c."work_id" = w."id"`;
 
@@ -27,6 +31,8 @@ function toSummary(row: WorkRow): WorkSummary {
     id: row.id,
     title: row.title,
     status: row.status,
+    moderation: row.moderation,
+    appealPending: row.appeal_pending === 1,
     chapterCount: row.chapter_count,
     publishedAt: row.published_at,
     updatedAt: row.updated_at ?? row.created_at,
