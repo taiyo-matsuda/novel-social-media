@@ -62,18 +62,30 @@ $("f").addEventListener("submit", async (e) => {
 </script>
 </body></html>`;
 
-/** 運営の管理画面（GET /admin）。データは /admin/api/* から合言葉付きで読む */
+/**
+ * 運営の管理画面（GET /admin）。運営アカウント（メールアドレス＋パスワード）でログインし、
+ * データは /admin/api/* から読む。ログインはクッキー（HttpOnly）で持ち、ページの JavaScript からは触れない
+ */
 export const ADMIN_PAGE = `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>運営の管理画面｜Ballad</title><style>${BASE_STYLE}</style></head>
 <body>
 <h1>運営の管理画面</h1>
-<div id="login" class="card">
-  <label for="token">合言葉（ADMIN_TOKEN）</label><input id="token" type="password" autocomplete="off">
-  <p><button class="primary" id="enter">入る</button></p>
+<div id="login" class="card" hidden>
+  <p>運営アカウントでログインしてください。</p>
+  <label for="email">メールアドレス</label><input id="email" type="email" autocomplete="username">
+  <label for="password">パスワード</label><input id="password" type="password" autocomplete="current-password">
+  <p><button class="primary" id="signIn">ログイン</button><button id="signUp">運営用アカウントを作る</button></p>
+  <p class="muted">運営用アカウントを作ったら、ログイン後に出る利用者IDをサーバーの ADMIN_USER_IDS に登録すると入れるようになります。</p>
+</div>
+<div id="denied" class="card" hidden>
+  <p>このアカウントには管理画面の権限がありません。</p>
+  <p>利用者ID：<code id="myId"></code></p>
+  <p class="muted">運営のアカウントなら、<code>pnpm exec wrangler secret put ADMIN_USER_IDS</code> でこの利用者IDを登録してから、読み直してください。</p>
+  <p><button id="deniedLogout">ログアウト</button></p>
 </div>
 <div id="main" hidden>
-  <p><button id="reload">読み直す</button><button id="logout">出る</button></p>
+  <p><button id="reload">読み直す</button><button id="logout">ログアウト</button></p>
   <h2>確認が必要な作品</h2><div id="queue"></div>
   <h2>権利者からの申し立て（Web）</h2><div id="claims"></div>
   <h2 id="detailTitle" hidden>作品の中身</h2><div id="detail"></div>
@@ -83,29 +95,47 @@ export const ADMIN_PAGE = `<!doctype html>
 const $ = (id) => document.getElementById(id);
 const LABELS = { sexual: "性的", violence: "暴力", harassment: "誹謗中傷", spam: "スパム", rights: "権利侵害", other: "その他" };
 const MOD = { ok: "問題なし", hidden: "仮で非表示", removed: "取り下げ済み" };
-let token = "";
-try { token = sessionStorage.getItem("adminToken") || ""; } catch {}
 
 function el(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
 function button(text, onClick, cls) { const b = el("button", text, cls); b.addEventListener("click", onClick); return b; }
 
+function show(id) { for (const s of ["login", "denied", "main"]) $(s).hidden = s !== id; }
+
 async function api(method, path, body) {
   const res = await fetch("/admin/api" + path, {
-    method, headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    method, headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) { logout(); throw new Error("合言葉が違います"); }
+  if (res.status === 401) { show("login"); throw new Error("ログインしてください"); }
+  if (res.status === 403) {
+    const j = await res.json().catch(() => ({}));
+    if (j.userId) { $("myId").textContent = j.userId; show("denied"); }
+    throw new Error(j.error || "許可されていません");
+  }
   if (!res.ok) throw new Error("失敗しました（" + res.status + "）");
   return res.status === 204 ? null : res.json();
 }
 
-function logout() { token = ""; try { sessionStorage.removeItem("adminToken"); } catch {} $("main").hidden = true; $("login").hidden = false; }
+async function auth(path, body) {
+  $("msg").textContent = "";
+  const res = await fetch("/api/auth/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    $("msg").textContent = res.status === 401 ? "メールアドレスかパスワードが違います"
+      : path.startsWith("sign-up") ? "アカウントを作れませんでした（登録済みのメールアドレスか、パスワードが短すぎます）"
+      : "ログインできませんでした";
+    return;
+  }
+  $("password").value = "";
+  load();
+}
+
+async function logout() { await fetch("/api/auth/sign-out", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); show("login"); }
 
 async function load() {
   $("msg").textContent = "";
   try {
     const [{ items }, { claims }] = await Promise.all([api("GET", "/queue"), api("GET", "/rights-claims")]);
-    $("login").hidden = true; $("main").hidden = false;
+    show("main");
     const q = $("queue"); q.replaceChildren();
     if (items.length === 0) q.append(el("p", "ありません", "muted"));
     for (const it of items) {
@@ -163,9 +193,11 @@ async function showWork(workId) {
   } catch (e) { $("msg").textContent = e.message; }
 }
 
-$("enter").addEventListener("click", () => { token = $("token").value; try { sessionStorage.setItem("adminToken", token); } catch {} load(); });
+$("signIn").addEventListener("click", () => auth("sign-in/email", { email: $("email").value, password: $("password").value }));
+$("signUp").addEventListener("click", () => auth("sign-up/email", { email: $("email").value, password: $("password").value, name: "運営" }));
 $("reload").addEventListener("click", load);
 $("logout").addEventListener("click", logout);
-if (token) load();
+$("deniedLogout").addEventListener("click", logout);
+load();
 </script>
 </body></html>`;

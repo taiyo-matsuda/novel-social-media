@@ -15,5 +15,6 @@ ANTHROPIC_API_KEY=
 
 # 通報などを運営に知らせる Slack の Incoming Webhook の URL。空なら知らせない
 OPS_WEBHOOK_URL=
-# 運営の管理画面（http://localhost:8787/admin）に入るための合言葉。`openssl rand -base64 32` などで作る。空なら管理画面は使えない
-ADMIN_TOKEN=
+# 管理画面（http://localhost:8787/admin）に入れる運営アカウントの利用者ID（カンマ区切り）。
+# 管理画面でログインすると「権限がありません」と一緒に自分の利用者IDが出るので、それを入れる。空なら誰も入れない
+ADMIN_USER_IDS=

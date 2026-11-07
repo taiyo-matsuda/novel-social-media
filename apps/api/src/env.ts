@@ -14,8 +14,8 @@ export type Env = {
   ANTHROPIC_MODEL?: string;
   /** 通報などを運営に知らせる Slack の Incoming Webhook の URL。空なら知らせない */
   OPS_WEBHOOK_URL?: string;
-  /** 運営の管理画面（/admin）に入るための合言葉。空なら管理画面は使えない */
-  ADMIN_TOKEN?: string;
+  /** 管理画面（/admin）に入れる運営アカウントの利用者ID（カンマ区切り）。空なら誰も入れない */
+  ADMIN_USER_IDS?: string;
 };
 
 /** TRUSTED_ORIGINS をオリジンの配列にする */

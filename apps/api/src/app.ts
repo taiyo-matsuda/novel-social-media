@@ -31,7 +31,7 @@ import {
   generateNextChapter,
   WorkNotFoundError,
 } from "./features/generation/generate-next-chapter";
-import { isAdminAuthorized } from "./features/moderation/admin-token";
+import { isAdminUser } from "./features/moderation/admin-users";
 import { d1ModerationStore } from "./features/moderation/d1-moderation-store";
 import {
   ADMIN_PAGE,
@@ -396,22 +396,40 @@ export function createApp(
     return c.body(null, 204);
   });
 
-  // ---- 運営の管理画面（合言葉 ADMIN_TOKEN が必要。空なら使えない） ----
+  // ---- 運営の管理画面 ----
+  // 画面は誰でも開けるが、中身（/admin/api/*）は ADMIN_USER_IDS にある運営アカウントでログインしたときだけ読み書きできる
 
-  app.get("/admin", (c) => {
-    if (!c.env.ADMIN_TOKEN) return c.notFound();
-    return c.body(ADMIN_PAGE, 200, PAGE_HEADERS);
-  });
+  app.get("/admin", (c) => c.body(ADMIN_PAGE, 200, PAGE_HEADERS));
 
-  const admin = new Hono<{ Bindings: Env }>();
+  const admin = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
   admin.use("*", async (c, next) => {
-    if (!c.env.ADMIN_TOKEN) return c.notFound();
-    if (!isAdminAuthorized(c.req.header("Authorization"), c.env.ADMIN_TOKEN)) {
-      return c.json({ error: "合言葉が違います" }, 401);
-    }
     c.header("Cache-Control", "no-store");
+    // 書き換えは管理画面のページ（同じオリジン）からだけ受け付ける
+    if (
+      c.req.method !== "GET" &&
+      c.req.header("Origin") !== new URL(c.req.url).origin
+    ) {
+      return c.json({ error: "許可されていない操作です" }, 403);
+    }
+    const session = await createAuth(c.env, deps.auth).api.getSession({
+      headers: c.req.raw.headers,
+    });
+    if (!session) return c.json({ error: "ログインが必要です" }, 401);
+    if (!isAdminUser(session.user.id, c.env)) {
+      // 運営アカウントを登録するときに ADMIN_USER_IDS に入れる値を、本人にだけ見せる
+      return c.json(
+        {
+          error: "このアカウントには管理画面の権限がありません",
+          userId: session.user.id,
+        },
+        403,
+      );
+    }
+    c.set("userId", session.user.id);
     await next();
   });
+
+  admin.get("/me", (c) => c.json({ userId: c.get("userId") }));
 
   admin.get("/queue", async (c) => {
     const items = await d1ModerationStore(c.env.DB).adminQueue();

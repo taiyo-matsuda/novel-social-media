@@ -54,15 +54,18 @@ pnpm exec wrangler secret put BETTER_AUTH_URL
 # Claude API のキーを貼る（apps/api/.dev.vars に入れているものと同じでよい）
 pnpm exec wrangler secret put ANTHROPIC_API_KEY
 
-# 運営の管理画面（/admin）の合言葉。作った値は手元のパスワード管理に控えておく
-openssl rand -base64 32
-pnpm exec wrangler secret put ADMIN_TOKEN
-
 # 通報を知らせる Slack の Incoming Webhook の URL を貼る（Slack の「アプリ > Incoming Webhooks」で作る）
 pnpm exec wrangler secret put OPS_WEBHOOK_URL
 ```
 
-`ADMIN_TOKEN` が空だと管理画面は開けず、`OPS_WEBHOOK_URL` が空だと通報の通知は届かない（通報そのものは貯まる）。
+`OPS_WEBHOOK_URL` が空だと通報の通知は届かない（通報そのものは貯まる）。
+
+運営の管理画面（`/admin`）は、運営アカウントでログインして使う。初回だけ次の手順で運営アカウントを登録する。
+
+1. ブラウザで `https://ballad-api.<サブドメイン>.workers.dev/admin` を開く
+2. 運営用のメールアドレスと長いパスワード（パスワード管理アプリで作って保存する）を入れ、「運営用アカウントを作る」
+3. 「権限がありません」と一緒に出る利用者IDをコピーし、`pnpm exec wrangler secret put ADMIN_USER_IDS` で貼る（複数人ならカンマ区切り）
+4. 管理画面で「読み直す」を押し、一覧が出れば完了
 
 Google ログインのクライアントIDは `wrangler.jsonc` に入っているので、何もしなくてよい。
 
