@@ -1,18 +1,15 @@
-/**
- * 管理画面に入れる運営アカウントの利用者ID（ADMIN_USER_IDS、カンマ区切り）を配列にする。
- * メールアドレスは確認メールなしで登録できるので使わず、アカウントに固有の利用者IDで決める
- */
-export function adminUserIdsOf(env: { ADMIN_USER_IDS?: string }): string[] {
-  return (env.ADMIN_USER_IDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
+/** 運営の役割。user テーブルの role がこの値の利用者だけ管理画面を使える */
+export const ADMIN_ROLE = "admin";
 
-/** ログイン中の利用者が運営か。ADMIN_USER_IDS が空なら誰も運営ではない */
-export function isAdminUser(
+/** ログイン中の利用者が運営か（user.role が 'admin'） */
+export async function isAdminUser(
+  db: D1Database,
   userId: string,
-  env: { ADMIN_USER_IDS?: string },
-): boolean {
-  return adminUserIdsOf(env).includes(userId);
+): Promise<boolean> {
+  if (!userId) return false;
+  const row = await db
+    .prepare(`select "role" from "user" where "id" = ?`)
+    .bind(userId)
+    .first<{ role: string }>();
+  return row?.role === ADMIN_ROLE;
 }

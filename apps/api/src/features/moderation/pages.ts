@@ -76,12 +76,12 @@ export const ADMIN_PAGE = `<!doctype html>
   <label for="email">メールアドレス</label><input id="email" type="email" autocomplete="username">
   <label for="password">パスワード</label><input id="password" type="password" autocomplete="current-password">
   <p><button class="primary" id="signIn">ログイン</button><button id="signUp">運営用アカウントを作る</button></p>
-  <p class="muted">運営用アカウントを作ったら、ログイン後に出る利用者IDをサーバーの ADMIN_USER_IDS に登録すると入れるようになります。</p>
+  <p class="muted">運営用アカウントを作ったら、ログイン後に出る利用者IDのアカウントを運営の役割にすると入れるようになります。</p>
 </div>
 <div id="denied" class="card" hidden>
   <p>このアカウントには管理画面の権限がありません。</p>
   <p>利用者ID：<code id="myId"></code></p>
-  <p class="muted">運営のアカウントなら、<code>pnpm exec wrangler secret put ADMIN_USER_IDS</code> でこの利用者IDを登録してから、読み直してください。</p>
+  <p class="muted">運営のアカウントなら、サーバー側でこの利用者IDの役割を admin にしてから、読み直してください。</p>
   <p><button id="deniedLogout">ログアウト</button></p>
 </div>
 <div id="main" hidden>

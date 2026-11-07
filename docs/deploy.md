@@ -64,7 +64,13 @@ pnpm exec wrangler secret put OPS_WEBHOOK_URL
 
 1. ブラウザで `https://ballad-api.<サブドメイン>.workers.dev/admin` を開く
 2. 運営用のメールアドレスと長いパスワード（パスワード管理アプリで作って保存する）を入れ、「運営用アカウントを作る」
-3. 「権限がありません」と一緒に出る利用者IDをコピーし、`pnpm exec wrangler secret put ADMIN_USER_IDS` で貼る（複数人ならカンマ区切り）
+3. 「権限がありません」と一緒に出る利用者IDをコピーし、次のコマンドでそのアカウントを運営の役割にする（`<利用者ID>` を置き換える。人を増やすときも同じ）
+
+   ```bash
+   pnpm exec wrangler d1 execute novel-db --remote --command "update \"user\" set role = 'admin' where id = '<利用者ID>'"
+   ```
+
+   運営から外すときは `role = 'user'` にする
 4. 管理画面で「読み直す」を押し、一覧が出れば完了
 
 Google ログインのクライアントIDは `wrangler.jsonc` に入っているので、何もしなくてよい。

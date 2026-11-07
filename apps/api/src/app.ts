@@ -397,7 +397,7 @@ export function createApp(
   });
 
   // ---- 運営の管理画面 ----
-  // 画面は誰でも開けるが、中身（/admin/api/*）は ADMIN_USER_IDS にある運営アカウントでログインしたときだけ読み書きできる
+  // 画面は誰でも開けるが、中身（/admin/api/*）は役割（user.role）が admin の運営アカウントでログインしたときだけ読み書きできる
 
   app.get("/admin", (c) => c.body(ADMIN_PAGE, 200, PAGE_HEADERS));
 
@@ -415,8 +415,8 @@ export function createApp(
       headers: c.req.raw.headers,
     });
     if (!session) return c.json({ error: "ログインが必要です" }, 401);
-    if (!isAdminUser(session.user.id, c.env)) {
-      // 運営アカウントを登録するときに ADMIN_USER_IDS に入れる値を、本人にだけ見せる
+    if (!(await isAdminUser(c.env.DB, session.user.id))) {
+      // 運営にするときに user.role を書き換える相手の利用者IDを、本人にだけ見せる
       return c.json(
         {
           error: "このアカウントには管理画面の権限がありません",

@@ -847,9 +847,15 @@ describe("無断転載への対応（非表示・取り下げ・停止・異議�
       headers: { Cookie: cookie },
     });
     const id = ((await res.json()) as { user: { id: string } }).user.id;
-    env.ADMIN_USER_IDS = id;
+    await makeAdmin(id);
     admin = { Cookie: cookie, Origin: BASE };
   });
+
+  async function makeAdmin(userId: string) {
+    await env.DB.prepare(`update "user" set "role" = 'admin' where "id" = ?`)
+      .bind(userId)
+      .run();
+  }
 
   async function titles(cookie?: string) {
     const res = await request(
@@ -1111,11 +1117,34 @@ describe("無断転載への対応（非表示・取り下げ・停止・異議�
     expect(body.userId).toBeTruthy();
     expect(JSON.stringify(body)).not.toContain("ops@example.com");
 
-    // 一覧が空なら誰も入れない
-    env.ADMIN_USER_IDS = "";
+    // 役割を外せば入れなくなる
+    await env.DB.prepare(`update "user" set "role" = 'user'`).run();
     expect((await request("/admin/api/queue", { headers: admin })).status).toBe(
       403,
     );
+  });
+
+  it("登録のときに自分で運営の役割を名乗ることはできない", async () => {
+    const res = await request(
+      "/api/auth/sign-up/email",
+      json("POST", {
+        email: "fake@example.com",
+        password: "password123",
+        name: "偽運営",
+        role: "admin",
+      }),
+    );
+    const cookie = res.headers.get("set-cookie")?.split(";")[0];
+    if (cookie) {
+      const denied = await request("/admin/api/queue", {
+        headers: { Cookie: cookie },
+      });
+      expect(denied.status).toBe(403);
+    }
+    const row = await env.DB.prepare(
+      `select "role" from "user" where "email" = 'fake@example.com'`,
+    ).first<{ role: string }>();
+    expect(row?.role ?? "user").toBe("user");
   });
 
   it("管理画面の書き換えは、ほかのサイトからは受け付けない", async () => {
