@@ -3,10 +3,11 @@ import type { Opening } from "@novel/core/openings";
 /** 冒頭文と、その答えの読み書き。どの利用者の答えかは必ず userId で絞る */
 export function d1OpeningsStore(db: D1Database) {
   return {
+    /** 最初の画面で見せる冒頭文。外した（retired）ものは見せない */
     async listOpenings(): Promise<Opening[]> {
       const { results } = await db
         .prepare(
-          `select "id", "text", "genre" from "openings" order by "sort_order", "id"`,
+          `select "id", "text", "genre" from "openings" where "retired" = 0 order by "sort_order", "id"`,
         )
         .all<Opening>();
       return results;

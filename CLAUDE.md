@@ -35,7 +35,7 @@ docs/           プロダクト・設計・決定記録
 - **アプリとサーバーでやり取りするデータの型とスキーマは `packages/core/src/api` が正。** サーバーは受け取ったら必ず zod で検証する。アプリ（Dart）は TypeScript を読めないので、`apps/mobile/lib/services/api_client.dart` に同じ形を書き写す。API を変えたら両方を直す。
 - **AIのAPIキーはアプリに入れない。** AI呼び出しは必ずサーバー（apps/api）経由。
 - **テストで Claude API を呼ばない。** `FakeNovelGenerator`（`@novel/core/ai`）を使う。AIやDBを使う処理は依存を引数で受け取る形にする（例：`apps/api/src/features/generation`）。
-- **プロンプトは `packages/core/src/ai/prompts.ts` に集める。** 変えたらテストの期待値も見直す。
+- **プロンプトは `packages/core/src/ai/prompts.ts` に集める。** 変えたらテストの期待値も見直す。書かせる小説は「ちゃんとした小説」（文芸として読める長編。チャット形式・ライトノベル調にしない）で、基準は [docs/writing-standard.md](docs/writing-standard.md)。
 - **DBの変更は新しいマイグレーションファイルで行う。** 既存のファイルは書き換えない。
 - **アプリはDBに直接触らない。** 読み書きは必ず apps/api 経由。D1 には RLS がないので、利用者のデータを扱うクエリは必ずログイン中の利用者IDで絞る。`user` 表のメールアドレスを他人向けの API で返さない。
 - **ログインは Better Auth で、Google だけ（アプリと管理画面が ID トークンを送る）。メールアドレス＋パスワードの登録・ログインはない（[決定記録](docs/decisions/0008-google-only-login.md)）。** 方式を変えるときは `docs/decisions/` を更新する。

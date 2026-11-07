@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_client.dart';
 import '../../widgets/app_button.dart';
+import '../reading/novel_text.dart';
 import 'moderation_notice.dart';
 import 'plot_request.dart';
 import 'plot_request_field.dart';
@@ -205,7 +206,7 @@ class _WorkScreenState extends State<WorkScreen> {
     final theme = Theme.of(context);
     final published = work.summary.published;
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: novelPagePadding(context),
       children: [
         Text(workStatusLabel(work.summary), style: theme.textTheme.bodySmall),
         const SizedBox(height: 8),
@@ -321,32 +322,15 @@ class _ChapterView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '第${chapter.position}章　${chapter.title}',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (chapter.plotRequest != null) ...[
-            const SizedBox(height: 8),
+          if (chapter.plotRequest != null)
             Text(
               'あなたのリクエスト：${chapter.plotRequest}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.primary,
               ),
             ),
-          ],
-          const SizedBox(height: 16),
-          SelectableText(
-            chapter.body,
-            // 冒頭文と同じく明朝体で読ませる
-            style: const TextStyle(
-              fontSize: 17,
-              height: 1.9,
-              fontFamily: 'Hiragino Mincho ProN',
-              fontFamilyFallback: ['serif'],
-            ),
-          ),
+          ChapterHeading(position: chapter.position, title: chapter.title),
+          NovelText(chapter.body),
         ],
       ),
     );

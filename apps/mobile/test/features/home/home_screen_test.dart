@@ -37,7 +37,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('第1章を書いてもらう'));
     await tester.pumpAndSettle();
-    expect(find.text('第1章の本文'), findsOneWidget);
+    expect(find.textContaining('第1章の本文'), findsOneWidget);
 
     await tester.pageBack();
     await tester.pumpAndSettle();

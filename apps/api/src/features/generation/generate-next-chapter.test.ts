@@ -7,10 +7,14 @@ import {
   WorkNotFoundError,
 } from "./generate-next-chapter";
 
-function memoryStore(): ChapterStore & {
-  works: Map<string, { userId: string; chapters: string[] }>;
-} {
-  const works = new Map<string, { userId: string; chapters: string[] }>();
+type MemoryWork = {
+  userId: string;
+  chapters: string[];
+  storyNotes: string | null;
+};
+
+function memoryStore(): ChapterStore & { works: Map<string, MemoryWork> } {
+  const works = new Map<string, MemoryWork>();
   return {
     works,
     loadPreference: async () => ({
@@ -18,17 +22,21 @@ function memoryStore(): ChapterStore & {
       dislikedOpenings: [],
       learnedTraits: [],
     }),
-    loadOwnChapters: async (userId, workId) => {
+    loadOwnWork: async (userId, workId) => {
       const work = works.get(workId);
-      return work && work.userId === userId ? [...work.chapters] : null;
+      return work && work.userId === userId
+        ? { chapters: [...work.chapters], storyNotes: work.storyNotes }
+        : null;
     },
     createWork: async (userId) => {
       const id = `work-${works.size + 1}`;
-      works.set(id, { userId, chapters: [] });
+      works.set(id, { userId, chapters: [], storyNotes: null });
       return id;
     },
-    addChapter: async ({ workId, body }) => {
-      works.get(workId)!.chapters.push(body);
+    addChapter: async ({ workId, body, storyNotes }) => {
+      const work = works.get(workId)!;
+      work.chapters.push(body);
+      if (storyNotes) work.storyNotes = storyNotes;
     },
   };
 }
@@ -54,6 +62,14 @@ describe("generateNextChapter", () => {
     });
 
     expect(second.chapter.position).toBe(2);
+    // 前の章で残した創作メモを次の章に渡し、応答には含めない
+    expect(generator.requests[1].storyNotes).toBe(
+      "テスト用の創作メモ（第1章まで）",
+    );
+    expect(store.works.get(first.workId)?.storyNotes).toBe(
+      "テスト用の創作メモ（第2章まで）",
+    );
+    expect(second.chapter).not.toHaveProperty("storyNotes");
     expect(generator.requests[1].previousChapters).toHaveLength(1);
     expect(generator.requests[1].plotRequest).toBe("店主の秘密を明かして");
   });

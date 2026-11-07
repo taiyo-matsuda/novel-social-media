@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../widgets/app_button.dart';
 import '../safety/report_dialog.dart';
+import 'novel_text.dart';
 import 'reading.dart';
 
 /// 右上のメニューの項目
@@ -258,7 +259,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
       },
       child: ListView(
         controller: _scroll,
-        padding: const EdgeInsets.all(24),
+        padding: novelPagePadding(context),
         children: [
           Text(
             [
@@ -269,24 +270,9 @@ class _ReadingScreenState extends State<ReadingScreen> {
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 24),
-          Text(
-            '第${chapter.position}章　${chapter.title}',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SelectableText(
-            chapter.body,
-            // 自分の作品の画面と同じく明朝体で読ませる
-            style: const TextStyle(
-              fontSize: 17,
-              height: 1.9,
-              fontFamily: 'Hiragino Mincho ProN',
-              fontFamilyFallback: ['serif'],
-            ),
-          ),
-          const Divider(height: 48),
+          ChapterHeading(position: chapter.position, title: chapter.title),
+          NovelText(chapter.body),
+          const Divider(height: 64),
           Text(
             '${chapter.position} / ${work.chapters.length} 章',
             textAlign: TextAlign.center,

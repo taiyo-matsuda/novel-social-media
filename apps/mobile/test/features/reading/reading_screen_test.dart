@@ -23,7 +23,7 @@ void main() {
     api.addWork('w1');
     await pump(tester, 'w1');
 
-    expect(find.text('第1章の本文'), findsOneWidget);
+    expect(find.textContaining('第1章の本文'), findsOneWidget);
     // 短い章は表示しただけで読み終えた扱い
     expect(api.reads, [
       ('w1', 1, ReadKind.start),
@@ -32,7 +32,7 @@ void main() {
 
     await tester.tap(find.text('第2章へ'));
     await tester.pumpAndSettle();
-    expect(find.text('第2章の本文'), findsOneWidget);
+    expect(find.textContaining('第2章の本文'), findsOneWidget);
     expect(api.reads.skip(2), [
       ('w1', 2, ReadKind.start),
       ('w1', 2, ReadKind.complete),

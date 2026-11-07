@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ballad/features/reading/novel_text.dart';
 import 'package:ballad/features/reading/public_works_screen.dart';
 
 import 'fake_reading_api.dart';
@@ -31,6 +32,6 @@ void main() {
 
     await tester.tap(find.text('二位の作品'));
     await tester.pumpAndSettle();
-    expect(find.text('第1章　第1章の題'), findsOneWidget);
+    expect(find.widgetWithText(ChapterHeading, '第1章の題'), findsOneWidget);
   });
 }

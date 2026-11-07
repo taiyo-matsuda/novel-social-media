@@ -53,7 +53,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.reports, isEmpty);
-    expect(find.text('第1章の本文'), findsOneWidget);
+    expect(find.textContaining('第1章の本文'), findsOneWidget);
   });
 
   testWidgets('作者をブロックすると、確かめたうえでその人の作品が一覧から消える', (tester) async {

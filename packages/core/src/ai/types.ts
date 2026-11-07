@@ -14,11 +14,15 @@ export type ChapterRequest = {
   previousChapters: string[];
   /** 読者からの「次はこういう展開がいい」（任意） */
   plotRequest?: string;
+  /** 前の章を書いたときにAIが残した創作メモ（人物・あらすじ・伏線など）。初回と古い作品はなし */
+  storyNotes?: string;
 };
 
 export type GeneratedChapter = {
   title: string;
   body: string;
+  /** 次の章のための創作メモ。読者には見せない。出力に含まれなければなし */
+  storyNotes?: string;
 };
 
 /**

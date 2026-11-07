@@ -26,7 +26,8 @@ export class ClaudeNovelGenerator implements NovelGenerator {
     const stream = this.client.beta.messages.stream({
       model: this.model,
       max_tokens: 64000,
-      output_config: { effort: "medium" },
+      // 文芸として読める章にするため、構成や人物の一貫性を考える余地を多めに取る
+      output_config: { effort: "high" },
       // 安全分類器に断られたときは、サーバー側で別モデルに切り替えて続行する
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",

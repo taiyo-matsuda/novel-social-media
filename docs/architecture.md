@@ -36,10 +36,10 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 
 1. アプリが `POST /api/chapters` を呼ぶ。第1章は「新しい小説」画面（`lib/features/writing/new_work_screen.dart`）から「どんな話を読みたいか」を、続きは作品の画面（`work_screen.dart`）から「次はこうしてほしい」を、どちらも任意で `plotRequest` として送る
 2. サーバーがログインを確かめ、入力を `generateChapterRequestSchema` で検証する
-3. `generateNextChapter()` が好みと過去の章を集め、`NovelGenerator` に章を書かせる（APIキーがなければフェイク）
-4. 生成した章を `chapters` に保存して返す
+3. `generateNextChapter()` が好みと、過去の章・創作メモ（`works.story_notes`）を集め、`NovelGenerator` に章を書かせる（APIキーがなければフェイク）。創作メモがあれば本文は直近2章だけを渡す
+4. 生成した章を `chapters` に、AIが書き直した創作メモを `works.story_notes` に保存し、章だけを返す（メモは読者に見せない）
 
-生成は数十秒かかることがある。アプリには進行中であることを表示する。
+文章の基準（地の文中心、視点と文体の固定、1章5000〜8000字など）は [writing-standard.md](writing-standard.md)。生成は1分ほどかかることがある。アプリには進行中であることを表示する。
 
 ## 自分の作品
 

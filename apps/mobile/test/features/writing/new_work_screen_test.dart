@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ballad/features/reading/novel_text.dart';
 import 'package:ballad/features/writing/new_work_screen.dart';
 import 'package:ballad/services/api_client.dart';
 
@@ -26,8 +27,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.requests.single, (workId: null, plotRequest: '猫の話。少し切ない話'));
-    expect(find.text('第1章　第1章の題'), findsOneWidget);
-    expect(find.text('第1章の本文'), findsOneWidget);
+    expect(find.widgetWithText(ChapterHeading, '第1章の題'), findsOneWidget);
+    expect(find.textContaining('第1章の本文'), findsOneWidget);
   });
 
   testWidgets('AIに断られたら理由を出し、この画面に残る', (tester) async {

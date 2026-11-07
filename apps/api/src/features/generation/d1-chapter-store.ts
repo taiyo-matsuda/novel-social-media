@@ -28,11 +28,13 @@ export function d1ChapterStore(db: D1Database): ChapterStore {
       };
     },
 
-    async loadOwnChapters(userId, workId) {
+    async loadOwnWork(userId, workId) {
       const work = await db
-        .prepare(`select 1 from "works" where "id" = ? and "author_id" = ?`)
+        .prepare(
+          `select "story_notes" from "works" where "id" = ? and "author_id" = ?`,
+        )
         .bind(workId, userId)
-        .first();
+        .first<{ story_notes: string | null }>();
       if (!work) return null;
       const { results } = await db
         .prepare(
@@ -40,7 +42,10 @@ export function d1ChapterStore(db: D1Database): ChapterStore {
         )
         .bind(workId)
         .all<{ body: string }>();
-      return results.map((c) => c.body);
+      return {
+        chapters: results.map((c) => c.body),
+        storyNotes: work.story_notes,
+      };
     },
 
     async createWork(userId, title) {
@@ -54,8 +59,15 @@ export function d1ChapterStore(db: D1Database): ChapterStore {
       return id;
     },
 
-    async addChapter({ workId, position, title, body, plotRequest }) {
-      await db
+    async addChapter({
+      workId,
+      position,
+      title,
+      body,
+      plotRequest,
+      storyNotes,
+    }) {
+      const insert = db
         .prepare(
           `insert into "chapters" ("id", "work_id", "position", "title", "body", "plot_request")
            values (?, ?, ?, ?, ?, ?)`,
@@ -67,8 +79,18 @@ export function d1ChapterStore(db: D1Database): ChapterStore {
           title,
           body,
           plotRequest ?? null,
-        )
-        .run();
+        );
+      if (!storyNotes) {
+        await insert.run();
+        return;
+      }
+      // 章と創作メモは一緒に書く（片方だけ残ると次の章がずれる）
+      await db.batch([
+        insert,
+        db
+          .prepare(`update "works" set "story_notes" = ? where "id" = ?`)
+          .bind(storyNotes, workId),
+      ]);
     },
   };
 }

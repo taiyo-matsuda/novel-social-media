@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ballad/features/reading/novel_text.dart';
 import 'package:ballad/features/writing/work_screen.dart';
 import 'package:ballad/services/api_client.dart';
 
@@ -30,7 +31,7 @@ void main() {
 
   testWidgets('章とそのときのリクエストを読める', (tester) async {
     await pump(tester);
-    expect(find.text('第1章　第1章の題'), findsOneWidget);
+    expect(find.widgetWithText(ChapterHeading, '第1章の題'), findsOneWidget);
     expect(find.text('あなたのリクエスト：猫の話'), findsOneWidget);
     expect(find.text('下書き・1章'), findsOneWidget);
   });
@@ -44,7 +45,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.requests.single, (workId: workId, plotRequest: '謎を一つ明かして'));
-    expect(find.text('第2章　第2章の題'), findsOneWidget);
+    expect(find.widgetWithText(ChapterHeading, '第2章の題'), findsOneWidget);
     expect(find.text('第3章を書いてもらう'), findsOneWidget);
     // 送ったリクエストは入力欄から消える
     expect(find.widgetWithText(TextField, '謎を一つ明かして'), findsNothing);

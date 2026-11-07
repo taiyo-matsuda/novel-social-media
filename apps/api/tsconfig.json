@@ -11,5 +11,5 @@
     "verbatimModuleSyntax": true,
     "types": ["@cloudflare/workers-types", "node"]
   },
-  "include": ["src", "vitest.config.ts"]
+  "include": ["src", "scripts", "vitest.config.ts"]
 }

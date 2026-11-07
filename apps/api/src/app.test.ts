@@ -286,8 +286,10 @@ describe("冒頭文", () => {
   it("冒頭文は表示順に返る", async () => {
     const res = await request("/api/openings");
     const { openings } = (await res.json()) as ListOpeningsResponse;
-    expect(openings).toHaveLength(12);
+    expect(openings).toHaveLength(13);
     expect(openings[0].genre).toBe("ミステリー");
+    // ライトノベル調の冒頭文は外している
+    expect(openings.map((o) => o.text).join()).not.toContain("悪役令嬢");
   });
 
   it("ログインしていないと答えを読み書きできない", async () => {

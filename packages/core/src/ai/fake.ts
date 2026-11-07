@@ -7,6 +7,10 @@ export class FakeNovelGenerator implements NovelGenerator {
   async generateChapter(req: ChapterRequest): Promise<GeneratedChapter> {
     this.requests.push(req);
     const n = req.previousChapters.length + 1;
-    return { title: `第${n}章`, body: `これはテスト用の第${n}章です。` };
+    return {
+      title: `第${n}章`,
+      body: `これはテスト用の第${n}章です。`,
+      storyNotes: `テスト用の創作メモ（第${n}章まで）`,
+    };
   }
 }
