@@ -18,7 +18,6 @@ import type { Env } from "./env";
 import { createFakeD1 } from "./test/fake-d1";
 
 const BASE = "http://localhost:8787";
-const ADMIN_TOKEN = "admin-token-for-test";
 
 let env: Env;
 let generator: FakeNovelGenerator;
@@ -32,7 +31,6 @@ beforeEach(() => {
     BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret",
     BETTER_AUTH_URL: BASE,
     TRUSTED_ORIGINS: "http://localhost:8081",
-    ADMIN_TOKEN: ADMIN_TOKEN,
   };
   generator = new FakeNovelGenerator();
   notifications = [];
@@ -840,7 +838,18 @@ describe("通報・ブロック・退会", () => {
 });
 
 describe("無断転載への対応（非表示・取り下げ・停止・異議・権利者の申し立て）", () => {
-  const admin = { Authorization: `Bearer ${ADMIN_TOKEN}` };
+  /** 運営アカウントのログイン（クッキーと、書き換えに要る同じオリジンの Origin） */
+  let admin: Record<string, string>;
+
+  beforeEach(async () => {
+    const cookie = await signUp("ops@example.com", "password123", "運営");
+    const res = await request("/api/auth/get-session", {
+      headers: { Cookie: cookie },
+    });
+    const id = ((await res.json()) as { user: { id: string } }).user.id;
+    env.ADMIN_USER_IDS = id;
+    admin = { Cookie: cookie, Origin: BASE };
+  });
 
   async function titles(cookie?: string) {
     const res = await request(
@@ -1086,22 +1095,45 @@ describe("無断転載への対応（非表示・取り下げ・停止・異議�
     expect(await list()).toMatchObject([{ workId, status: "resolved" }]);
   });
 
-  it("管理画面は合言葉がないと使えず、合言葉が設定されていなければ存在しない", async () => {
-    expect((await request("/admin/api/queue")).status).toBe(401);
-    expect(
-      (
-        await request("/admin/api/queue", {
-          headers: { Authorization: "Bearer wrong" },
-        })
-      ).status,
-    ).toBe(401);
+  it("管理画面は運営アカウントでログインしたときだけ使え、ほかの人には利用者IDだけを返す", async () => {
     expect((await request("/admin")).status).toBe(200);
-
-    env.ADMIN_TOKEN = undefined;
-    expect((await request("/admin")).status).toBe(404);
+    expect((await request("/admin/api/queue")).status).toBe(401);
     expect((await request("/admin/api/queue", { headers: admin })).status).toBe(
-      404,
+      200,
     );
+
+    const taro = await signUp("taro@example.com");
+    const denied = await request("/admin/api/queue", {
+      headers: { Cookie: taro },
+    });
+    expect(denied.status).toBe(403);
+    const body = (await denied.json()) as { userId: string };
+    expect(body.userId).toBeTruthy();
+    expect(JSON.stringify(body)).not.toContain("ops@example.com");
+
+    // 一覧が空なら誰も入れない
+    env.ADMIN_USER_IDS = "";
+    expect((await request("/admin/api/queue", { headers: admin })).status).toBe(
+      403,
+    );
+  });
+
+  it("管理画面の書き換えは、ほかのサイトからは受け付けない", async () => {
+    const taro = await signUp("taro@example.com");
+    const workId = await publish(taro, "古書店の少女");
+    const res = await request(`/admin/api/works/${workId}/actions`, {
+      method: "POST",
+      headers: {
+        Cookie: admin.Cookie!,
+        Origin: "https://evil.example.com",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "remove" }),
+    });
+    expect(res.status).toBe(403);
+    expect(
+      (await (await request("/api/public-works")).json()) as object,
+    ).toEqual(expect.objectContaining({ works: [expect.anything()] }));
   });
 
   it("管理画面の作品の中身には、作者のメールアドレスを出さない", async () => {
