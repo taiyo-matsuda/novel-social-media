@@ -5,7 +5,8 @@
 //   ANTHROPIC_API_KEY=... pnpm sample:chapters ../../docs/samples/2026-11-literary.md
 //
 // キーは .dev.vars から読み込む（画面にもファイルにも出さない）。
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 import Anthropic from "@anthropic-ai/sdk";
 import {
@@ -180,13 +181,17 @@ async function runReader(reader: Reader, variant: Variant): Promise<string> {
 }
 
 const out = process.argv[2] ?? "sample-chapters.md";
+mkdirSync(dirname(out), { recursive: true });
 const sections: string[] = [
   `# 改善前と改善後の生成例\n\nモデル：${model}。${new Date().toISOString().slice(0, 10)} に apps/api/scripts/sample-chapters.ts で生成。`,
 ];
+// 読者ごとに書き出す。途中で落ちても、それまでの分は残る
+const save = () => writeFileSync(out, sections.join("\n\n") + "\n");
+save();
 for (const reader of READERS) {
   const results = await Promise.all(VARIANTS.map((v) => runReader(reader, v)));
   sections.push(`## ${reader.name}`, ...results);
+  save();
   console.log(`生成した：${reader.name}`);
 }
-writeFileSync(out, sections.join("\n\n") + "\n");
 console.log(`書き出した：${out}`);
