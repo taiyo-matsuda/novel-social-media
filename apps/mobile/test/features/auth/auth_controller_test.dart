@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ballad/features/auth/auth_controller.dart';
-import 'package:ballad/features/auth/validation.dart';
+import 'package:ballad/features/auth/auth_messages.dart';
 import 'package:ballad/services/api_client.dart';
 import 'package:ballad/services/google_sign_in.dart';
 import 'package:ballad/services/token_store.dart';
@@ -14,27 +14,9 @@ class FakeApi extends ApiClient {
   SessionUser? session;
   Map<int, bool> choices = {};
   ApiException? signInError;
-  String? lastEmail;
 
   @override
   Future<SessionUser?> getSession() async => session;
-
-  @override
-  Future<SessionUser> signIn({
-    required String email,
-    required String password,
-  }) async {
-    lastEmail = email;
-    if (signInError != null) throw signInError!;
-    return session = taro;
-  }
-
-  @override
-  Future<SessionUser> signUp({
-    required String email,
-    required String password,
-    required String name,
-  }) => signIn(email: email, password: password);
 
   String? googleIdToken;
 
@@ -52,9 +34,6 @@ class FakeApi extends ApiClient {
   @override
   Future<Map<int, bool>> fetchOwnChoices() async => choices;
 
-  /// パスワードでログインできるアカウントか
-  bool passwordAccount = true;
-
   /// Google でログインし直したあと（ログイン状態が新しい）か
   bool freshSession = false;
 
@@ -62,16 +41,9 @@ class FakeApi extends ApiClient {
   SessionUser googleUser = taro;
 
   @override
-  Future<bool> hasPassword() async => passwordAccount;
-
-  @override
-  Future<void> deleteAccount({String? password}) async {
-    if (password == null) {
-      if (!freshSession) {
-        throw ApiException(400, 'Session expired', code: 'SESSION_EXPIRED');
-      }
-    } else if (password != 'password123') {
-      throw ApiException(400, 'Invalid password', code: 'INVALID_PASSWORD');
+  Future<void> deleteAccount() async {
+    if (!freshSession) {
+      throw ApiException(400, 'Session expired', code: 'SESSION_EXPIRED');
     }
     deleted = true;
     session = null;
@@ -129,6 +101,11 @@ void main() {
       expect(auth.user, isNull);
     });
 
+    test('試行が続いて断られたら、時間をおくよう伝える', () async {
+      api.signInError = ApiException(429, 'Too many requests');
+      expect(await auth.signInWithGoogle(), tooManyAttemptsMessage);
+    });
+
     test('端末側で失敗してもメッセージを返す', () async {
       google.fail = true;
       expect(await auth.signInWithGoogle(), googleErrorMessage);
@@ -156,58 +133,25 @@ void main() {
     expect(auth.onboarded, isTrue);
   });
 
-  test('ログインしたら、好みが足りなければ冒頭文の画面へ', () async {
-    api.choices = {1: true};
-    final error = await auth.submit(
-      AuthMode.signIn,
-      ' Taro@Example.com ',
-      'password123',
-    );
-    expect(error, isNull);
-    expect(api.lastEmail, 'taro@example.com');
-    expect(auth.onboarded, isFalse);
-  });
-
-  test('ログインに失敗したら日本語のメッセージを返す', () async {
-    api.signInError = ApiException(401, 'x', code: 'INVALID_EMAIL_OR_PASSWORD');
-    final error = await auth.submit(
-      AuthMode.signIn,
-      'taro@example.com',
-      'wrong-password',
-    );
-    expect(error, 'メールアドレスかパスワードが違います。');
-    expect(auth.user, isNull);
-  });
-
   test('ログアウトすると未ログインに戻る', () async {
-    await auth.submit(AuthMode.signUp, 'taro@example.com', 'password123');
+    await auth.signInWithGoogle();
     await auth.signOut();
     expect(auth.user, isNull);
     expect(auth.onboarded, isNull);
   });
 
-  test('退会はパスワードが違えば理由を返し、できたら未ログインに戻る', () async {
-    await auth.submit(AuthMode.signUp, 'taro@example.com', 'password123');
-    expect(await auth.deleteAccount('wrong'), 'パスワードが違います。');
-    expect(auth.user, isNotNull);
-
-    expect(await auth.deleteAccount('password123'), isNull);
-    expect(auth.user, isNull);
-    expect(auth.onboarded, isNull);
-  });
-
-  group('Google の人の退会', () {
+  group('退会', () {
     setUp(() async {
       await auth.signInWithGoogle();
-      api.passwordAccount = false;
       api.freshSession = false;
     });
 
-    test('Google でログインし直してから、パスワードなしで退会する', () async {
+    test('Google でログインし直してから退会し、未ログインに戻る', () async {
       expect(await auth.deleteAccountWithGoogle(), isNull);
       expect(api.freshSession, isTrue);
       expect(auth.user, isNull);
       expect(google.signedOut, isTrue);
+      expect(auth.onboarded, isNull);
     });
 
     test('Google の画面でやめたら何もしない', () async {

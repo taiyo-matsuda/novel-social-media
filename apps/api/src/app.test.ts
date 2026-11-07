@@ -18,6 +18,26 @@ import type { Env } from "./env";
 import { createFakeD1 } from "./test/fake-d1";
 
 const BASE = "http://localhost:8787";
+const WEB_CLIENT_ID = "web.apps.googleusercontent.com";
+
+/** 署名は確かめない（verifyGoogleIdToken で差し替える）ので、中身だけの ID トークンを作る */
+function fakeIdToken(claims: Record<string, unknown>) {
+  const encode = (o: unknown) =>
+    Buffer.from(JSON.stringify(o)).toString("base64url");
+  return `${encode({ alg: "RS256", kid: "test" })}.${encode(claims)}.sig`;
+}
+
+/** そのメールアドレスの Google アカウントの ID トークン */
+function googleToken(email: string, name = "読者") {
+  return fakeIdToken({
+    iss: "https://accounts.google.com",
+    aud: WEB_CLIENT_ID,
+    sub: `google-${email}`,
+    email,
+    email_verified: true,
+    name,
+  });
+}
 
 let env: Env;
 let generator: FakeNovelGenerator;
@@ -31,6 +51,7 @@ beforeEach(() => {
     BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret",
     BETTER_AUTH_URL: BASE,
     TRUSTED_ORIGINS: "http://localhost:8081",
+    GOOGLE_CLIENT_IDS: `${WEB_CLIENT_ID}, ios.apps.googleusercontent.com`,
   };
   generator = new FakeNovelGenerator();
   notifications = [];
@@ -39,6 +60,7 @@ beforeEach(() => {
     createNotifier: () => async (text) => {
       notifications.push(text);
     },
+    auth: { verifyGoogleIdToken: async () => true },
   });
 });
 
@@ -58,16 +80,20 @@ function json(method: string, body: unknown, cookie?: string): RequestInit {
   };
 }
 
-/** 登録して、ログイン状態のクッキーを返す */
-async function signUp(
-  email = "taro@example.com",
-  password = "password123",
-  name = "読者",
-) {
-  const res = await request(
-    "/api/auth/sign-up/email",
-    json("POST", { email, password, name }),
+/** Google でログイン（初めてなら登録）する。管理画面と同じく、ブラウザから同じオリジンで送る */
+function googleSignIn(email: string, name = "読者") {
+  return request(
+    "/api/auth/sign-in/social",
+    json("POST", {
+      provider: "google",
+      idToken: { token: googleToken(email, name) },
+    }),
   );
+}
+
+/** Google で登録して、ログイン状態のクッキーを返す */
+async function signUp(email = "taro@example.com", name = "読者") {
+  const res = await googleSignIn(email, name);
   expect(res.status).toBe(200);
   const cookie = res.headers.get("set-cookie")?.split(";")[0];
   expect(cookie).toBeTruthy();
@@ -75,38 +101,36 @@ async function signUp(
 }
 
 describe("ログイン", () => {
-  it("メールアドレスとパスワードで登録すると、確認メールなしでそのままログインできる", async () => {
-    const cookie = await signUp();
-    const res = await request("/api/auth/get-session", {
-      headers: { Cookie: cookie },
-    });
-    const session = (await res.json()) as { user: { email: string } };
-    expect(session.user.email).toBe("taro@example.com");
-  });
-
-  it("登録したパスワードでログインし直せ、違うパスワードは弾く", async () => {
-    await signUp();
-    const ok = await request(
+  it("メールアドレスとパスワードでは登録もログインもできない", async () => {
+    const signUpRes = await request(
+      "/api/auth/sign-up/email",
+      json("POST", {
+        email: "taro@example.com",
+        password: "password123",
+        name: "読者",
+      }),
+    );
+    expect(signUpRes.status).toBeGreaterThanOrEqual(400);
+    expect(signUpRes.headers.get("set-cookie")).toBeNull();
+    const signInRes = await request(
       "/api/auth/sign-in/email",
       json("POST", { email: "taro@example.com", password: "password123" }),
     );
-    expect(ok.status).toBe(200);
-    const ng = await request(
-      "/api/auth/sign-in/email",
-      json("POST", { email: "taro@example.com", password: "wrong-password" }),
-    );
-    expect(ng.status).toBe(401);
+    expect(signInRes.status).toBeGreaterThanOrEqual(400);
+    const users = await env.DB.prepare(
+      `select count(*) as n from "user"`,
+    ).first();
+    expect(users).toEqual({ n: 0 });
   });
 
   it("スマホアプリは set-auth-token のトークンを Bearer で送ってログイン状態を使え、ログアウトで無効になる", async () => {
     // アプリは Origin もクッキーも付けずに送る
-    const res = await request("/api/auth/sign-up/email", {
+    const res = await request("/api/auth/sign-in/social", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: "hanako@example.com",
-        password: "password123",
-        name: "読者",
+        provider: "google",
+        idToken: { token: googleToken("hanako@example.com") },
       }),
     });
     const token = res.headers.get("set-auth-token");
@@ -127,25 +151,20 @@ describe("ログイン", () => {
     ).toBe(401);
   });
 
-  it("短すぎるパスワードでは登録できない", async () => {
-    const res = await request(
-      "/api/auth/sign-up/email",
-      json("POST", { email: "a@example.com", password: "short", name: "読者" }),
-    );
-    expect(res.status).toBe(400);
+  it("新しく登録した人は運営の役割を持たない", async () => {
+    const cookie = await signUp("fake@example.com");
+    expect(
+      (await request("/admin/api/queue", { headers: { Cookie: cookie } }))
+        .status,
+    ).toBe(403);
+    const row = await env.DB.prepare(
+      `select "role" from "user" where "email" = 'fake@example.com'`,
+    ).first();
+    expect(row).toEqual({ role: "user" });
   });
 });
 
 describe("Google でログイン", () => {
-  const WEB_CLIENT_ID = "web.apps.googleusercontent.com";
-
-  /** 署名は確かめない（verifyGoogleIdToken で差し替える）ので、中身だけの ID トークンを作る */
-  function fakeIdToken(claims: Record<string, unknown>) {
-    const encode = (o: unknown) =>
-      Buffer.from(JSON.stringify(o)).toString("base64url");
-    return `${encode({ alg: "RS256", kid: "test" })}.${encode(claims)}.sig`;
-  }
-
   const hanakoToken = fakeIdToken({
     iss: "https://accounts.google.com",
     aud: WEB_CLIENT_ID,
@@ -257,6 +276,7 @@ describe("Google でログイン", () => {
   });
 
   it("GOOGLE_CLIENT_IDS が空なら Google ログインは使えない", async () => {
+    env.GOOGLE_CLIENT_IDS = "";
     const res = await signInWithGoogle(app, hanakoToken);
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
@@ -503,7 +523,7 @@ describe("みんなの作品", () => {
   }
 
   it("公開作品だけが作者名付きで並び、メールアドレスや下書きは出ない", async () => {
-    const taro = await signUp("taro@example.com", "password123", "太郎");
+    const taro = await signUp("taro@example.com", "太郎");
     await publish(taro, "古書店の少女", 2);
     await request("/api/chapters", json("POST", {}, taro)); // 下書きのまま
 
@@ -750,8 +770,8 @@ describe("通報・ブロック・退会", () => {
   });
 
   it("ブロックするとお互いの作品が見えなくなり、解除すると戻る", async () => {
-    const taro = await signUp("taro@example.com", "password123", "太郎");
-    const hanako = await signUp("hanako@example.com", "password123", "花子");
+    const taro = await signUp("taro@example.com", "太郎");
+    const hanako = await signUp("hanako@example.com", "花子");
     const taroWork = await publish(taro, "太郎の作品");
     await publish(hanako, "花子の作品");
     const taroId = await userId(taro);
@@ -803,30 +823,20 @@ describe("通報・ブロック・退会", () => {
     expect((await request("/api/blocks")).status).toBe(401);
   });
 
-  it("パスワードを確かめて退会すると、作品も消えてログインできなくなる", async () => {
+  it("退会すると、作品も消えてログインし直すと別の新しい利用者になる", async () => {
     const taro = await signUp("taro@example.com");
     const hanako = await signUp("hanako@example.com");
+    const taroId = await userId(taro);
     const workId = await publish(taro, "古書店の少女");
     await report(workId, { reason: "spam" }, hanako);
-    await request(`/api/blocks/${await userId(taro)}`, json("PUT", {}, hanako));
+    await request(`/api/blocks/${taroId}`, json("PUT", {}, hanako));
 
-    const wrong = await request(
-      "/api/auth/delete-user",
-      json("POST", { password: "wrong-password" }, taro),
-    );
-    expect(wrong.status).toBe(400);
-
-    const res = await request(
-      "/api/auth/delete-user",
-      json("POST", { password: "password123" }, taro),
-    );
+    // ログインし直した直後なのでパスワードなしで退会できる
+    const res = await request("/api/auth/delete-user", json("POST", {}, taro));
     expect(res.status).toBe(200);
-
-    const signIn = await request(
-      "/api/auth/sign-in/email",
-      json("POST", { email: "taro@example.com", password: "password123" }),
-    );
-    expect(signIn.status).toBe(401);
+    expect(
+      (await request("/api/works", { headers: { Cookie: taro } })).status,
+    ).toBe(401);
     expect(await list(hanako)).toEqual([]);
     const left = await env.DB.prepare(
       `select (select count(*) from "works") as "works",
@@ -842,7 +852,7 @@ describe("無断転載への対応（非表示・取り下げ・停止・異議�
   let admin: Record<string, string>;
 
   beforeEach(async () => {
-    const cookie = await signUp("ops@example.com", "password123", "運営");
+    const cookie = await signUp("ops@example.com", "運営");
     const res = await request("/api/auth/get-session", {
       headers: { Cookie: cookie },
     });
@@ -1009,11 +1019,7 @@ describe("無断転載への対応（非表示・取り下げ・停止・異議�
     expect(
       (await request("/api/works", { headers: { Cookie: taro } })).status,
     ).toBe(401);
-    const signIn = await request(
-      "/api/auth/sign-in/email",
-      json("POST", { email: "taro@example.com", password: "password123" }),
-    );
-    expect(signIn.status).toBe(403);
+    expect((await googleSignIn("taro@example.com")).status).toBe(403);
 
     // 停止を解くと、またログインでき、取り下げていない作品は戻る
     const { work } = (await (
@@ -1028,11 +1034,7 @@ describe("無断転載への対応（非表示・取り下げ・停止・異議�
         })
       ).status,
     ).toBe(204);
-    const again = await request(
-      "/api/auth/sign-in/email",
-      json("POST", { email: "taro@example.com", password: "password123" }),
-    );
-    expect(again.status).toBe(200);
+    expect((await googleSignIn("taro@example.com")).status).toBe(200);
     expect(await titles(hanako)).toEqual(["四作目"]);
   });
 
@@ -1102,7 +1104,12 @@ describe("無断転載への対応（非表示・取り下げ・停止・異議�
   });
 
   it("管理画面は運営アカウントでログインしたときだけ使え、ほかの人には利用者IDだけを返す", async () => {
-    expect((await request("/admin")).status).toBe(200);
+    const page = await request("/admin");
+    expect(page.status).toBe(200);
+    // Google ログインのボタンに Web のクライアントIDが入り、メールアドレスの入力欄はない
+    const html = await page.text();
+    expect(html).toContain(`data-client_id="${WEB_CLIENT_ID}"`);
+    expect(html).not.toContain('type="password"');
     expect((await request("/admin/api/queue")).status).toBe(401);
     expect((await request("/admin/api/queue", { headers: admin })).status).toBe(
       200,
@@ -1122,29 +1129,6 @@ describe("無断転載への対応（非表示・取り下げ・停止・異議�
     expect((await request("/admin/api/queue", { headers: admin })).status).toBe(
       403,
     );
-  });
-
-  it("登録のときに自分で運営の役割を名乗ることはできない", async () => {
-    const res = await request(
-      "/api/auth/sign-up/email",
-      json("POST", {
-        email: "fake@example.com",
-        password: "password123",
-        name: "偽運営",
-        role: "admin",
-      }),
-    );
-    const cookie = res.headers.get("set-cookie")?.split(";")[0];
-    if (cookie) {
-      const denied = await request("/admin/api/queue", {
-        headers: { Cookie: cookie },
-      });
-      expect(denied.status).toBe(403);
-    }
-    const row = await env.DB.prepare(
-      `select "role" from "user" where "email" = 'fake@example.com'`,
-    ).first<{ role: string }>();
-    expect(row?.role ?? "user").toBe("user");
   });
 
   it("管理画面の書き換えは、ほかのサイトからは受け付けない", async () => {

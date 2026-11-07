@@ -4,15 +4,10 @@ import '../../services/api_client.dart';
 import '../../services/google_sign_in.dart';
 import '../openings/deck.dart';
 import '../safety/safety.dart';
-import 'validation.dart';
-
-enum AuthMode { signUp, signIn }
+import 'auth_messages.dart';
 
 /// 退会の確認を途中でやめたときの戻り値
 const deleteCanceled = '';
-
-/// 表示名の初期値。あとでプロフィール画面から変えられるようにする
-const defaultName = '読者';
 
 /// ログイン状態と「好みを伝え終えたか」を持つ。どの画面を見せるかは main.dart がこれを見て決める。
 class AuthController extends ChangeNotifier {
@@ -48,31 +43,9 @@ class AuthController extends ChangeNotifier {
       if (idToken == null) return null;
       user = await _api.signInWithGoogle(idToken);
     } on ApiException catch (e) {
-      return e.status == 429
-          ? authErrorMessage(status: 429)
-          : googleErrorMessage;
+      return e.status == 429 ? tooManyAttemptsMessage : googleErrorMessage;
     } catch (_) {
       return googleErrorMessage;
-    }
-    await _afterSignIn();
-    return null;
-  }
-
-  /// メールアドレスで登録またはログインする。失敗したら画面に出す文を返す
-  Future<String?> submit(AuthMode mode, String email, String password) async {
-    final normalized = normalizeEmail(email);
-    try {
-      user = mode == AuthMode.signUp
-          ? await _api.signUp(
-              email: normalized,
-              password: password,
-              name: defaultName,
-            )
-          : await _api.signIn(email: normalized, password: password);
-    } on ApiException catch (e) {
-      return authErrorMessage(code: e.code, status: e.status);
-    } catch (_) {
-      return authErrorMessage();
     }
     await _afterSignIn();
     return null;
@@ -116,18 +89,7 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// パスワードで退会する。失敗したら画面に出す文を返し、成功したらログアウトした状態にする
-  Future<String?> deleteAccount(String password) async {
-    try {
-      await _api.deleteAccount(password: password);
-    } catch (e) {
-      return deleteAccountErrorMessage(e);
-    }
-    await _afterDelete();
-    return null;
-  }
-
-  /// Google でログインし直して本人か確かめてから退会する（パスワードのない人向け）。
+  /// Google でログインし直して本人か確かめてから退会する。
   /// やめたら [deleteCanceled] を返す（画面には出さない）
   Future<String?> deleteAccountWithGoogle() async {
     final userId = user?.id;

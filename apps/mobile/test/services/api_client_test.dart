@@ -40,38 +40,16 @@ void main() {
   });
 
   group('ログイン', () {
-    test('登録すると set-auth-token のトークンを保存する', () async {
-      final api = clientWith(
-        (_) async => jsonResponse(
-          {'token': 'raw', 'user': user},
-          headers: {'set-auth-token': 'signed.token'},
-        ),
-      );
-      final u = await api.signUp(
-        email: 'taro@example.com',
-        password: 'password123',
-        name: '読者',
-      );
-      expect(u.email, 'taro@example.com');
-      expect(tokens.token, 'signed.token');
-      expect(sent.single.url.path, '/api/auth/sign-up/email');
-      expect(jsonDecode(sent.single.body), containsPair('name', '読者'));
-    });
-
-    test('ログインに失敗したら Better Auth のエラーコードを渡す', () async {
+    test('ログインに失敗したら Better Auth のエラーを渡し、トークンは保存しない', () async {
       final api = clientWith(
         (_) async => jsonResponse({
-          'code': 'INVALID_EMAIL_OR_PASSWORD',
-          'message': 'Invalid email or password',
+          'code': 'INVALID_TOKEN',
+          'message': 'Invalid token',
         }, status: 401),
       );
       await expectLater(
-        api.signIn(email: 'taro@example.com', password: 'wrong-password'),
-        throwsA(
-          isA<ApiException>()
-              .having((e) => e.status, 'status', 401)
-              .having((e) => e.code, 'code', 'INVALID_EMAIL_OR_PASSWORD'),
-        ),
+        api.signInWithGoogle('bad-token'),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 401)),
       );
       expect(tokens.token, isNull);
     });
@@ -371,56 +349,28 @@ void main() {
       );
     });
 
-    test('退会できたら端末のトークンを消し、パスワード違いはエラーコードを渡す', () async {
-      tokens.token = 'signed.token';
-      var fail = true;
-      final api = clientWith(
-        (_) async => fail
-            ? jsonResponse({
-                'code': 'INVALID_PASSWORD',
-                'message': 'Invalid password',
-              }, status: 400)
-            : jsonResponse({'success': true, 'message': 'User deleted'}),
-      );
-      await expectLater(
-        api.deleteAccount(password: 'wrong'),
-        throwsA(
-          isA<ApiException>().having((e) => e.code, 'code', 'INVALID_PASSWORD'),
-        ),
-      );
-      expect(tokens.token, 'signed.token');
-
-      fail = false;
-      await api.deleteAccount(password: 'password123');
-      expect(sent.last.url.path, '/api/auth/delete-user');
-      expect(sent.last.headers['Authorization'], 'Bearer signed.token');
-      expect(jsonDecode(sent.last.body), {'password': 'password123'});
-      expect(tokens.token, isNull);
-    });
-
-    test('パスワードなしの退会は空の本文で送る（Google の人がログインし直した直後）', () async {
+    test('退会は空の本文で送り、できたら端末のトークンを消す（Google でログインし直した直後）', () async {
       tokens.token = 'signed.token';
       final api = clientWith(
         (_) async => jsonResponse({'success': true, 'message': 'User deleted'}),
       );
       await api.deleteAccount();
+      expect(sent.single.url.path, '/api/auth/delete-user');
+      expect(sent.single.headers['Authorization'], 'Bearer signed.token');
       expect(jsonDecode(sent.single.body), <String, dynamic>{});
       expect(tokens.token, isNull);
     });
 
-    test('パスワードでログインできるかをアカウント一覧から判断する', () async {
+    test('退会に失敗したらトークンは残す', () async {
       tokens.token = 'signed.token';
-      var accounts = [
-        {'providerId': 'google'},
-      ];
-      final api = clientWith((_) async => jsonResponse(accounts));
-      expect(await api.hasPassword(), isFalse);
-      accounts = [
-        {'providerId': 'google'},
-        {'providerId': 'credential'},
-      ];
-      expect(await api.hasPassword(), isTrue);
-      expect(sent.last.url.path, '/api/auth/list-accounts');
+      final api = clientWith(
+        (_) async => jsonResponse({
+          'code': 'SESSION_EXPIRED',
+          'message': 'Session expired',
+        }, status: 400),
+      );
+      await expectLater(api.deleteAccount(), throwsA(isA<ApiException>()));
+      expect(tokens.token, 'signed.token');
     });
   });
 }

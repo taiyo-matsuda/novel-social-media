@@ -1,11 +1,9 @@
-import { MIN_PASSWORD_LENGTH } from "@novel/core/auth";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { bearer } from "better-auth/plugins";
 
 import { webOrigins, type Env } from "../env";
 import { d1ModerationStore } from "../features/moderation/d1-moderation-store";
-import { hashPassword, verifyPassword } from "./password";
 
 /** テストで Google の署名確認を差し替えるためのもの */
 export type AuthDeps = {
@@ -13,7 +11,8 @@ export type AuthDeps = {
 };
 
 /**
- * ログイン（Better Auth）。Google でのログインと、メールアドレス＋パスワード（確認メールなし）を受け付ける。
+ * ログイン（Better Auth）。Google でのログインだけを受け付ける（メールアドレス＋パスワードの登録・ログインはない。
+ * docs/decisions/0008-google-only-login.md）。
  * Google はアプリが端末上でログインして受け取った ID トークンを `POST /api/auth/sign-in/social` に送ってくる
  * （`{ provider: "google", idToken: { token } }`）。サーバーは Google の署名と宛先（クライアントID）を確かめる。
  * スマホアプリ（Flutter）はログイン時の `set-auth-token` ヘッダーのトークンを端末に保存し、
@@ -26,16 +25,11 @@ export function createAuth(env: Env, deps: AuthDeps = {}) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     basePath: "/api/auth",
-    emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: false,
-      minPasswordLength: MIN_PASSWORD_LENGTH,
-      password: { hash: hashPassword, verify: verifyPassword },
-    },
-    // アプリ内の退会（POST /api/auth/delete-user）。アプリは必ずパスワードを送る。
+    emailAndPassword: { enabled: false },
+    // アプリ内の退会（POST /api/auth/delete-user）。アプリは Google でログインし直した直後に送る（パスワードはない）。
     // 作品・章・読んだ記録・高評価・ブロックは DB の on delete cascade で消え、通報は通報者を空にして残る
     user: { deleteUser: { enabled: true } },
-    // GOOGLE_CLIENT_IDS が空なら Google ログインは無効
+    // GOOGLE_CLIENT_IDS が空なら Google ログインも無効になり、誰もログインできない
     socialProviders:
       googleClientIds.length > 0
         ? {

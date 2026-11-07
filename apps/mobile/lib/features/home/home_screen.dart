@@ -112,10 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => DeleteAccountScreen(
-                      auth: auth,
-                      hasPassword: widget.api.hasPassword,
-                    ),
+                    builder: (_) => DeleteAccountScreen(auth: auth),
                   ),
                 ),
                 child: const Text('アカウントを削除'),

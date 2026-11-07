@@ -34,7 +34,8 @@ import {
 import { isAdminUser } from "./features/moderation/admin-users";
 import { d1ModerationStore } from "./features/moderation/d1-moderation-store";
 import {
-  ADMIN_PAGE,
+  ADMIN_PAGE_HEADERS,
+  adminPage,
   PAGE_HEADERS,
   RIGHTS_PAGE,
 } from "./features/moderation/pages";
@@ -46,7 +47,7 @@ import { d1SafetyStore } from "./features/safety/d1-safety-store";
 import { d1WorksStore } from "./features/works/d1-works-store";
 import { createNovelGenerator } from "./lib/ai";
 import { AiRefusalError } from "./lib/ai/claude";
-import { createAuth, type AuthDeps } from "./lib/auth";
+import { createAuth, googleClientIdsOf, type AuthDeps } from "./lib/auth";
 import { createNotifier, type Notifier } from "./lib/notify";
 
 type AppEnv = { Bindings: Env; Variables: { userId: string } };
@@ -399,7 +400,14 @@ export function createApp(
   // ---- 運営の管理画面 ----
   // 画面は誰でも開けるが、中身（/admin/api/*）は役割（user.role）が admin の運営アカウントでログインしたときだけ読み書きできる
 
-  app.get("/admin", (c) => c.body(ADMIN_PAGE, 200, PAGE_HEADERS));
+  // Google ログインのボタンには Web のクライアントID（GOOGLE_CLIENT_IDS の先頭）を使う
+  app.get("/admin", (c) =>
+    c.body(
+      adminPage(googleClientIdsOf(c.env)[0] ?? ""),
+      200,
+      ADMIN_PAGE_HEADERS,
+    ),
+  );
 
   const admin = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
   admin.use("*", async (c, next) => {

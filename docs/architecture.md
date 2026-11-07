@@ -13,22 +13,22 @@
 Cloudflare D1 (SQLite)
 ```
 
-| 層           | 採用                                                                        | 理由                                                                    |
-| ------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| スマホアプリ | Flutter（Dart）                                                             | iOS / Android を1つのコードで作れる。Mac の Xcode でビルドする          |
-| サーバー     | Cloudflare Workers + Hono + TypeScript                                      | AIのAPIキーを安全に持てる。世界中で近い場所から応答でき、無料枠が大きい |
-| 共有ロジック | packages/core（TypeScript）                                                 | サーバー側の型・プロンプト・ランキング。アプリは Dart で書き写す        |
-| DB           | Cloudflare D1（SQLite）                                                     | Workers から設定なしで使える                                            |
-| 認証         | Better Auth（Google の ID トークン・メール＋パスワード、bearer プラグイン） | D1 に直接つながる。アプリはトークンを Bearer で送る                     |
-| AI           | Claude API（`@anthropic-ai/sdk`）                                           | 日本語の長文生成。モデルは `ANTHROPIC_MODEL` で切り替え                 |
-| テスト       | Vitest（サーバー）、flutter test（アプリ）                                  |                                                                         |
-| ホスティング | Cloudflare Workers（サーバー）、App Store / Google Play（アプリ）           |                                                                         |
+| 層           | 採用                                                              | 理由                                                                    |
+| ------------ | ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| スマホアプリ | Flutter（Dart）                                                   | iOS / Android を1つのコードで作れる。Mac の Xcode でビルドする          |
+| サーバー     | Cloudflare Workers + Hono + TypeScript                            | AIのAPIキーを安全に持てる。世界中で近い場所から応答でき、無料枠が大きい |
+| 共有ロジック | packages/core（TypeScript）                                       | サーバー側の型・プロンプト・ランキング。アプリは Dart で書き写す        |
+| DB           | Cloudflare D1（SQLite）                                           | Workers から設定なしで使える                                            |
+| 認証         | Better Auth（Google の ID トークンだけ、bearer プラグイン）       | D1 に直接つながる。アプリはトークンを Bearer で送る                     |
+| AI           | Claude API（`@anthropic-ai/sdk`）                                 | 日本語の長文生成。モデルは `ANTHROPIC_MODEL` で切り替え                 |
+| テスト       | Vitest（サーバー）、flutter test（アプリ）                        |                                                                         |
+| ホスティング | Cloudflare Workers（サーバー）、App Store / Google Play（アプリ） |                                                                         |
 
 D1 には PostgreSQL の RLS のような仕組みがないので、「本人だけ書ける・ログイン者だけ読める」は API のコードで守る。アプリが DB に直接触ることはない。
 
 ## ログインと最初の画面
 
-1. 未ログインならログイン画面（`apps/mobile/lib/features/auth/sign_in_screen.dart`）。メールアドレスとパスワードで登録・ログインする。確認メールは送らない（[決定記録](decisions/0003-cloudflare-better-auth.md)）
+1. 未ログインならログイン画面（`apps/mobile/lib/features/auth/sign_in_screen.dart`）。Google でログインする。初めてならそのまま登録される（[決定記録](decisions/0008-google-only-login.md)）
 2. 好みが未入力なら冒頭文の画面（`lib/features/openings/openings_screen.dart`）。1つずつ「読みたい／読みたくない」を選び、`PUT /api/opening-choices/:id` で保存する
 3. 好みを伝え終えたらホーム。どの画面を見せるかは `lib/main.dart` が `AuthController` の状態を見て切り替える
 
@@ -81,13 +81,13 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 
 ストア審査で求められる機能（[決定記録](decisions/0005-reports-blocks-account-deletion.md)）。
 
-| API                                      | 内容                                                                                                   |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `POST /api/public-works/:workId/reports` | 作品を通報する（`reason` と任意の `detail`）。同じ作品の通報し直しは上書き。自分の作品は 403           |
-| `GET /api/blocks`                        | ブロックした人（利用者IDと名前）を新しい順に                                                           |
-| `PUT /api/blocks/:userId`                | ブロックする。自分は 400、いない人は 404                                                               |
-| `DELETE /api/blocks/:userId`             | ブロックを解除する                                                                                     |
-| `POST /api/auth/delete-user`             | 退会（Better Auth）。アプリは `password` を必ず送る。作品などは `on delete cascade` で消え、通報は残る |
+| API                                      | 内容                                                                                                                                   |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/public-works/:workId/reports` | 作品を通報する（`reason` と任意の `detail`）。同じ作品の通報し直しは上書き。自分の作品は 403                                           |
+| `GET /api/blocks`                        | ブロックした人（利用者IDと名前）を新しい順に                                                                                           |
+| `PUT /api/blocks/:userId`                | ブロックする。自分は 400、いない人は 404                                                                                               |
+| `DELETE /api/blocks/:userId`             | ブロックを解除する                                                                                                                     |
+| `POST /api/auth/delete-user`             | 退会（Better Auth）。アプリは Google でログインし直した直後に、パスワードなしで送る。作品などは `on delete cascade` で消え、通報は残る |
 
 - 見えなくする条件は `SELECT_PUBLIC_WORK`（`apps/api/src/features/public-works/d1-public-works-store.ts`）にまとめてある。どちらかがブロックした相手の作品と、自分が通報した作品は、一覧・読む画面・高評価・読んだ記録のどれでも 404 扱い。一覧はログインしていれば（`optionalUser`）見る人で絞る
 - ブロックに使うため、公開作品には `authorId`（利用者ID）を付けて返す。メールアドレスは返さない
@@ -105,5 +105,4 @@ D1 には PostgreSQL の RLS のような仕組みがないので、「本人だ
 - ランキング集計：いまはリクエストごとに集計している。作品が増えたら定期実行（Cron Triggers）で集計して保存する形に変える
 - 行動学習の精度：いまは題名と書き出しを渡すだけ。データが増えたら、ジャンルや章の長さの傾向も推定する
 - 生成のジョブ化：Workers の1リクエストの時間に収まらなくなったら、Queues に入れて完了を通知する形に変える
-- パスワードを忘れた人への対応（再設定メールを送るか）
 - 通報が来たときの運営への通知と管理画面

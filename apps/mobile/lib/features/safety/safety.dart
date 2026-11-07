@@ -16,7 +16,6 @@ const maxReportDetailLength = 500;
 /// 退会に失敗したときに画面に出す文
 String deleteAccountErrorMessage(Object error) {
   if (error is ApiException) {
-    if (error.code == 'INVALID_PASSWORD') return 'パスワードが違います。';
     if (error.status == 429) return '試行が続いたため、少し時間をおいてからお試しください。';
   }
   return '退会できませんでした。通信状態を確かめて、もう一度お試しください。';

@@ -60,10 +60,14 @@ pnpm exec wrangler secret put OPS_WEBHOOK_URL
 
 `OPS_WEBHOOK_URL` が空だと通報の通知は届かない（通報そのものは貯まる）。
 
-運営の管理画面（`/admin`）は、運営アカウントでログインして使う。初回だけ次の手順で運営アカウントを登録する。
+運営の管理画面（`/admin`）は、運営の Google アカウントでログインして使う。
+
+先に Google Cloud の「API とサービス > 認証情報」で **Web のクライアントID** を開き、「承認済みの JavaScript 生成元」に `https://ballad-api.<サブドメイン>.workers.dev` を足して保存する（手元で試すなら `http://localhost:8787` も）。これがないと Google のボタンがエラーになる。
+
+初回だけ次の手順で運営アカウントを登録する。
 
 1. ブラウザで `https://ballad-api.<サブドメイン>.workers.dev/admin` を開く
-2. 運営用のメールアドレスと長いパスワード（パスワード管理アプリで作って保存する）を入れ、「運営用アカウントを作る」
+2. 「Google でログイン」を押し、運営に使う Google アカウントでログインする（初めてならそのまま登録される）
 3. 「権限がありません」と一緒に出る利用者IDをコピーし、次のコマンドでそのアカウントを運営の役割にする（`<利用者ID>` を置き換える。人を増やすときも同じ）
 
    ```bash
@@ -71,6 +75,7 @@ pnpm exec wrangler secret put OPS_WEBHOOK_URL
    ```
 
    運営から外すときは `role = 'user'` にする
+
 4. 管理画面で「読み直す」を押し、一覧が出れば完了
 
 Google ログインのクライアントIDは `wrangler.jsonc` に入っているので、何もしなくてよい。

@@ -312,24 +312,6 @@ class ApiClient {
   }
 
   /// 登録する。確認メールは送られず、そのままログイン状態になる
-  Future<SessionUser> signUp({
-    required String email,
-    required String password,
-    required String name,
-  }) => _signIn('/api/auth/sign-up/email', {
-    'email': email,
-    'password': password,
-    'name': name,
-  });
-
-  Future<SessionUser> signIn({
-    required String email,
-    required String password,
-  }) => _signIn('/api/auth/sign-in/email', {
-    'email': email,
-    'password': password,
-  });
-
   /// 端末で Google にログインして受け取った ID トークンでログインする。初めてなら登録される
   Future<SessionUser> signInWithGoogle(String idToken) =>
       _signIn('/api/auth/sign-in/social', {
@@ -526,23 +508,10 @@ class ApiClient {
   Future<void> unblock(String userId) =>
       _request('DELETE', '/api/blocks/$userId');
 
-  /// 退会する。本人の作品も消える。パスワードが違えば [ApiException]（code: INVALID_PASSWORD）。
-  /// パスワードでログインできるアカウントか（Google だけで登録した人は false）
-  Future<bool> hasPassword() async {
-    final accounts = await _request('GET', '/api/auth/list-accounts') as List;
-    return accounts.any(
-      (a) => (a as Map<String, dynamic>)['providerId'] == 'credential',
-    );
-  }
-
-  /// 退会する。[password] がなければ、ログインし直した直後（ログインから1日以内）である必要がある。
+  /// 退会する。本人の作品も消える。ログインし直した直後（ログインから1日以内）である必要がある（Google でログインし直してから呼ぶ）。
   /// 退会できたら端末のトークンを消す
-  Future<void> deleteAccount({String? password}) async {
-    await _request(
-      'POST',
-      '/api/auth/delete-user',
-      body: {'password': ?password},
-    );
+  Future<void> deleteAccount() async {
+    await _request('POST', '/api/auth/delete-user', body: const {});
     await tokens.write(null);
   }
 }

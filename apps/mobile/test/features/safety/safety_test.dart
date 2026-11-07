@@ -10,13 +10,7 @@ void main() {
     expect(reportReasonLabel(ReportReason.spam), 'スパム・宣伝');
   });
 
-  test('退会の失敗は、パスワード違いとそれ以外で文を分ける', () {
-    expect(
-      deleteAccountErrorMessage(
-        ApiException(400, 'Invalid password', code: 'INVALID_PASSWORD'),
-      ),
-      'パスワードが違います。',
-    );
+  test('退会の失敗は、試行の続けすぎとそれ以外で文を分ける', () {
     expect(
       deleteAccountErrorMessage(ApiException(429, 'Too many requests')),
       contains('少し時間をおいて'),

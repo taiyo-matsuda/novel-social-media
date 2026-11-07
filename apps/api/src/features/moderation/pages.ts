@@ -1,5 +1,5 @@
 // サーバーが出す Web のページ（運営の管理画面と、権利者の申し立てフォーム）。
-// どちらも外部のファイルを読まず、データは必ず textContent で入れる（HTML として解釈させない）
+// 外部のファイルは管理画面の Google ログインのスクリプトだけ読む。データは必ず textContent で入れる（HTML として解釈させない）
 
 /** ページに付けるヘッダー。他サイトへの埋め込みとキャッシュを断る */
 export const PAGE_HEADERS: Record<string, string> = {
@@ -9,6 +9,17 @@ export const PAGE_HEADERS: Record<string, string> = {
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "no-referrer",
   "Cache-Control": "no-store",
+};
+
+/** Google ログイン（Google Identity Services）の読み込み元 */
+const GSI = "https://accounts.google.com/gsi/";
+
+/** 管理画面のヘッダー。Google ログインのボタンとポップアップだけ外部を許す */
+export const ADMIN_PAGE_HEADERS: Record<string, string> = {
+  ...PAGE_HEADERS,
+  "Content-Security-Policy": `default-src 'none'; script-src 'unsafe-inline' ${GSI}client; style-src 'unsafe-inline' ${GSI}style; frame-src ${GSI}; connect-src 'self' ${GSI}; img-src https://*.googleusercontent.com; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`,
+  // Google のボタンは呼び出し元のオリジンを見るので、オリジンだけは送る
+  "Referrer-Policy": "strict-origin-when-cross-origin",
 };
 
 const BASE_STYLE = `
@@ -66,17 +77,25 @@ $("f").addEventListener("submit", async (e) => {
  * 運営の管理画面（GET /admin）。運営アカウント（メールアドレス＋パスワード）でログインし、
  * データは /admin/api/* から読む。ログインはクッキー（HttpOnly）で持ち、ページの JavaScript からは触れない
  */
-export const ADMIN_PAGE = `<!doctype html>
+/** クライアントIDに使える文字だけにする（ページに埋め込むので） */
+function safeClientId(id: string): string {
+  return id.replace(/[^A-Za-z0-9.\-_]/g, "");
+}
+
+/**
+ * 運営の管理画面。webClientId は Google ログインの Web のクライアントID。
+ * Google のボタンで受け取った ID トークンを /api/auth/sign-in/social に送ってログインする（アプリと同じ方式）
+ */
+export const adminPage = (webClientId: string) => `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>運営の管理画面｜Ballad</title><style>${BASE_STYLE}</style></head>
 <body>
 <h1>運営の管理画面</h1>
 <div id="login" class="card" hidden>
-  <p>運営アカウントでログインしてください。</p>
-  <label for="email">メールアドレス</label><input id="email" type="email" autocomplete="username">
-  <label for="password">パスワード</label><input id="password" type="password" autocomplete="current-password">
-  <p><button class="primary" id="signIn">ログイン</button><button id="signUp">運営用アカウントを作る</button></p>
-  <p class="muted">運営用アカウントを作ったら、ログイン後に出る利用者IDのアカウントを運営の役割にすると入れるようになります。</p>
+  <p>運営の Google アカウントでログインしてください。</p>
+  <div id="g_id_onload" data-client_id="${safeClientId(webClientId)}" data-callback="onGoogle" data-auto_prompt="false"></div>
+  <div class="g_id_signin" data-type="standard" data-text="signin_with" data-locale="ja"></div>
+  <p class="muted">初めてなら、ログインすると利用者IDが出ます。そのアカウントを運営の役割にすると入れるようになります。</p>
 </div>
 <div id="denied" class="card" hidden>
   <p>このアカウントには管理画面の権限がありません。</p>
@@ -116,16 +135,18 @@ async function api(method, path, body) {
   return res.status === 204 ? null : res.json();
 }
 
-async function auth(path, body) {
+// Google のボタンから呼ばれる。受け取った ID トークンでログインする
+async function onGoogle(response) {
   $("msg").textContent = "";
-  const res = await fetch("/api/auth/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await fetch("/api/auth/sign-in/social", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider: "google", idToken: { token: response.credential } }),
+  });
   if (!res.ok) {
-    $("msg").textContent = res.status === 401 ? "メールアドレスかパスワードが違います"
-      : path.startsWith("sign-up") ? "アカウントを作れませんでした（登録済みのメールアドレスか、パスワードが短すぎます）"
-      : "ログインできませんでした";
+    const j = await res.json().catch(() => ({}));
+    $("msg").textContent = j.message || "ログインできませんでした";
     return;
   }
-  $("password").value = "";
   load();
 }
 
@@ -193,11 +214,10 @@ async function showWork(workId) {
   } catch (e) { $("msg").textContent = e.message; }
 }
 
-$("signIn").addEventListener("click", () => auth("sign-in/email", { email: $("email").value, password: $("password").value }));
-$("signUp").addEventListener("click", () => auth("sign-up/email", { email: $("email").value, password: $("password").value, name: "運営" }));
 $("reload").addEventListener("click", load);
 $("logout").addEventListener("click", logout);
 $("deniedLogout").addEventListener("click", logout);
 load();
 </script>
+<script src="${GSI}client" async></script>
 </body></html>`;
